@@ -1,0 +1,1756 @@
+{
+  "response": {
+    "result_sources": {
+      "token_match": {
+        "count": 0
+      },
+      "embeddings_match": {
+        "count": 100
+      }
+    },
+    "facets": [
+      {
+        "display_name": "Category",
+        "name": "Category",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 14,
+            "display_name": "Chocolate",
+            "value": "Chocolate",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 35,
+            "display_name": "Kids Art, Craft & Stationery",
+            "value": "Kids Art, Craft & Stationery",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 13,
+            "display_name": "Mens Grooming",
+            "value": "Mens Grooming",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Candles & Home Fragrance",
+            "value": "Candles & Home Fragrance",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 7,
+            "display_name": "Craft Supplies",
+            "value": "Craft Supplies",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 3,
+            "display_name": "Novelty Confectionery",
+            "value": "Novelty Confectionery",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Gift Bags",
+            "value": "Gift Bags",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Board Games & Puzzles",
+            "value": "Board Games & Puzzles",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 3,
+            "display_name": "Accessories",
+            "value": "Accessories",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Gift Boxes",
+            "value": "Gift Boxes",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 5,
+            "display_name": "Cards",
+            "value": "Cards",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Bars",
+            "value": "Bars",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "Cosmetics",
+            "value": "Cosmetics",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Seasonal Confectionary",
+            "value": "Seasonal Confectionary",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Yarn & Haberdashery",
+            "value": "Yarn & Haberdashery",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Product Type",
+        "name": "Product Type",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 9,
+            "display_name": "Chocolate Gifts",
+            "value": "Chocolate Gifts",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Moisturiser",
+            "value": "Moisturiser",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Fragrant Candles",
+            "value": "Fragrant Candles",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Crafting Objects",
+            "value": "Crafting Objects",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 3,
+            "display_name": "Chocolates",
+            "value": "Chocolates",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 3,
+            "display_name": "Womens",
+            "value": "Womens",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "Gift Sets",
+            "value": "Gift Sets",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Halloween Candy",
+            "value": "Halloween Candy",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Large Gift Bag",
+            "value": "Large Gift Bag",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "Christmas Food",
+            "value": "Christmas Food",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 5,
+            "display_name": "Bath & Shower",
+            "value": "Bath & Shower",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "Jewellery Making",
+            "value": "Jewellery Making",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Caps",
+            "value": "Caps",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Gift Box & Ribbon",
+            "value": "Gift Box & Ribbon",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "Greeting",
+            "value": "Greeting",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Toblerone",
+            "value": "Toblerone",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Birthday",
+            "value": "Birthday",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Lip Balm",
+            "value": "Lip Balm",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Necklaces",
+            "value": "Necklaces",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Haberdashery",
+            "value": "Haberdashery",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Bracelets",
+            "value": "Bracelets",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Subcategory",
+        "name": "Subcategory",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 26,
+            "display_name": "Crafting",
+            "value": "Crafting",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Skincare",
+            "value": "Skincare",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 5,
+            "display_name": "Fragrances",
+            "value": "Fragrances",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Board Games",
+            "value": "Board Games",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 7,
+            "display_name": "Bath & Body",
+            "value": "Bath & Body",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Hats",
+            "value": "Hats",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 4,
+            "display_name": "Stationery",
+            "value": "Stationery",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Lips",
+            "value": "Lips",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Figurines & Playsets",
+            "value": "Figurines & Playsets",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "Jewellery",
+            "value": "Jewellery",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Gift Set",
+            "value": "Gift Set",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Brand",
+        "name": "Brand",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "Baylis & Harding",
+            "value": "Baylis & Harding",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "Baylis and Harding",
+            "value": "Baylis and Harding",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 3,
+            "display_name": "Cadbury",
+            "value": "Cadbury",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 4,
+            "display_name": "Ferrero Rocher",
+            "value": "Ferrero Rocher",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 5,
+            "display_name": "Hallmark",
+            "value": "Hallmark",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Horizon",
+            "value": "Horizon",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 4,
+            "display_name": "Lindt",
+            "value": "Lindt",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "Maltesers",
+            "value": "Maltesers",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 5,
+            "display_name": "OXX Studio",
+            "value": "OXX STUDIO",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Toblerone",
+            "value": "Toblerone",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Colour",
+        "name": "Colour",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 80,
+            "display_name": "Multi",
+            "value": "Multi",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 4,
+            "display_name": "Pink",
+            "value": "Pink",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "Gold",
+            "value": "Gold",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 6,
+            "display_name": "Brown",
+            "value": "Brown",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Navy",
+            "value": "Navy",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Purple",
+            "value": "Purple",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 4,
+            "display_name": "Blue",
+            "value": "Blue",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Print",
+            "value": "Print",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Silver",
+            "value": "Silver",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Suitable for ages",
+        "name": "Suitable for ages",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "2-4 Years",
+            "value": "2+ Years",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 20,
+            "display_name": "5+ Years",
+            "value": "5+ Years",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 15,
+            "display_name": "8+ Years",
+            "value": "8+ Years",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Price",
+        "name": "Price",
+        "type": "multiple",
+        "hidden": false,
+        "data": {},
+        "options": [
+          {
+            "status": "",
+            "count": 21,
+            "display_name": "$5 and less",
+            "value": "\"-inf\"-\"5\"",
+            "data": {},
+            "range": [
+              "-inf",
+              5
+            ]
+          },
+          {
+            "status": "",
+            "count": 30,
+            "display_name": "$5 - $10",
+            "value": "\"5\"-\"10\"",
+            "data": {},
+            "range": [
+              5,
+              10
+            ]
+          },
+          {
+            "status": "",
+            "count": 47,
+            "display_name": "$10 - $20",
+            "value": "\"10\"-\"20\"",
+            "data": {},
+            "range": [
+              10,
+              20
+            ]
+          },
+          {
+            "status": "",
+            "count": 17,
+            "display_name": "$20 - $30",
+            "value": "\"20\"-\"30\"",
+            "data": {},
+            "range": [
+              20,
+              30
+            ]
+          },
+          {
+            "status": "",
+            "count": 7,
+            "display_name": "$30 - $50",
+            "value": "\"30\"-\"50\"",
+            "data": {},
+            "range": [
+              30,
+              50
+            ]
+          },
+          {
+            "status": "",
+            "count": 8,
+            "display_name": "$50 - $100",
+            "value": "\"50\"-\"100\"",
+            "data": {},
+            "range": [
+              50,
+              100
+            ]
+          },
+          {
+            "status": "",
+            "count": 3,
+            "display_name": "$100 and more",
+            "value": "\"100\"-\"inf\"",
+            "data": {},
+            "range": [
+              100,
+              "inf"
+            ]
+          }
+        ]
+      },
+      {
+        "display_name": "Quantity",
+        "name": "Quantity",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "50 - 100g",
+            "value": "50 - 100g",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 5,
+            "display_name": "100 - 200g",
+            "value": "100 - 200g",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 5,
+            "display_name": "200 - 300g",
+            "value": "200 - 300g",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 4,
+            "display_name": "300 - 400g",
+            "value": "300 - 400g",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Over 500g",
+            "value": "Over 500g",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "0 - 50ml",
+            "value": "0 - 50ml",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Card Type",
+        "name": "Card Type",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "Greeting",
+            "value": "Greeting",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Birthday",
+            "value": "Birthday",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Pack Size",
+        "name": "Pack Size",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "1 - 5 ",
+            "value": "1 - 5",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "5 - 10",
+            "value": "5 - 10",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "10 - 15",
+            "value": "10 - 15",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "15 - 20",
+            "value": "15 - 20",
+            "data": {}
+          },
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "20 - 30",
+            "value": "20 - 30",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Size",
+        "name": "Size",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 100,
+            "display_name": "/One Size ",
+            "value": "One Size Fits All",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Material",
+        "name": "Material",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "Plastic",
+            "value": "Plastic",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Gender",
+        "name": "Gender",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 2,
+            "display_name": "Women",
+            "value": "Women",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Fragrance",
+        "name": "Fragrance",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Floral",
+            "value": "Floral",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Size Range",
+        "name": "Size Range",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Large to Extra Large",
+            "value": "Large to Extra Large",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      },
+      {
+        "display_name": "Formulation",
+        "name": "Formulation",
+        "type": "multiple",
+        "options": [
+          {
+            "status": "",
+            "count": 1,
+            "display_name": "Spray",
+            "value": "Spray",
+            "data": {}
+          }
+        ],
+        "hidden": false,
+        "data": {}
+      }
+    ],
+    "groups": [
+      {
+        "group_id": "all",
+        "display_name": "All",
+        "count": 100,
+        "data": {},
+        "children": [
+          {
+            "group_id": "dddaa894234df841cfb678463562e055",
+            "display_name": "Home & Living",
+            "count": 56,
+            "data": {
+              "url": "/home-and-living/",
+              "sequence": 9000,
+              "isSpecial": false,
+              "identifier": "Home & Living",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "dddaa894234df841cfb678463562e055"
+              ],
+              "defaultCategory": true
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          },
+          {
+            "group_id": "ce059e196a9104cd5e29f3295a32e737",
+            "display_name": "Mother's Day",
+            "count": 38,
+            "data": {
+              "url": "/mothers-day/inactive/",
+              "sequence": 8000,
+              "isSpecial": false,
+              "identifier": "Mothers Day",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "ce059e196a9104cd5e29f3295a32e737"
+              ],
+              "defaultCategory": true
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          },
+          {
+            "group_id": "81b616fbff55b8698d44852f45c08630",
+            "display_name": "Christmas",
+            "count": 32,
+            "data": {
+              "url": "/christmas/inactive/",
+              "sequence": 3000,
+              "isSpecial": false,
+              "identifier": "Christmas",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "81b616fbff55b8698d44852f45c08630"
+              ],
+              "defaultCategory": true
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          },
+          {
+            "group_id": "bbbcb4ecce212f38c5dcfefbb03a8533",
+            "display_name": "Mens",
+            "count": 17,
+            "data": {
+              "url": "/mens/",
+              "sequence": 11000,
+              "isSpecial": false,
+              "identifier": "Men",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "bbbcb4ecce212f38c5dcfefbb03a8533"
+              ],
+              "defaultCategory": true
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          },
+          {
+            "group_id": "66d0af2d5da0109dc2aae67829f7d4d4",
+            "display_name": "Toys",
+            "count": 36,
+            "data": {
+              "url": "/toys/",
+              "sequence": 13000,
+              "isSpecial": false,
+              "identifier": "Toys",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "66d0af2d5da0109dc2aae67829f7d4d4"
+              ],
+              "defaultCategory": true
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          },
+          {
+            "group_id": "4e21b615a67e9e9ad13a030628bb904c",
+            "display_name": "Back To School",
+            "count": 32,
+            "data": {
+              "url": "/back-to-school/inactive/",
+              "sequence": 7000,
+              "isSpecial": false,
+              "identifier": "Back To School",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "4e21b615a67e9e9ad13a030628bb904c"
+              ],
+              "defaultCategory": false
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          },
+          {
+            "group_id": "faaad9343dac03b28bb32e4b4156a604",
+            "display_name": "Clearance",
+            "count": 24,
+            "data": {
+              "url": "/inactive/",
+              "sequence": 28000,
+              "isSpecial": false,
+              "identifier": "Clearance",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "faaad9343dac03b28bb32e4b4156a604"
+              ],
+              "defaultCategory": true
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          },
+          {
+            "group_id": "b133ad579435cfc931fc4843bcf0256d",
+            "display_name": "Womens",
+            "count": 19,
+            "data": {
+              "url": "/womens/",
+              "sequence": 10000,
+              "isSpecial": false,
+              "identifier": "Women",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "b133ad579435cfc931fc4843bcf0256d"
+              ],
+              "defaultCategory": true
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          },
+          {
+            "group_id": "7a7f3a70f71ac2372ae60e431b8236bb",
+            "display_name": "Beauty",
+            "count": 15,
+            "data": {
+              "url": "/beauty/",
+              "sequence": 14000,
+              "isSpecial": false,
+              "identifier": "Beauty",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "7a7f3a70f71ac2372ae60e431b8236bb"
+              ],
+              "defaultCategory": true
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          },
+          {
+            "group_id": "89abe35cb1ad766f11a28c598fd37ba1",
+            "display_name": "Gifting",
+            "count": 12,
+            "data": {
+              "url": "/gifting/",
+              "sequence": 26625,
+              "isSpecial": false,
+              "identifier": "Gifting",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "89abe35cb1ad766f11a28c598fd37ba1"
+              ],
+              "defaultCategory": true
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          },
+          {
+            "group_id": "575e0dc3e4b24d90d2a216d4dc5d0f09",
+            "display_name": "Tech",
+            "count": 9,
+            "data": {
+              "url": "/tech/",
+              "sequence": 16000,
+              "isSpecial": false,
+              "identifier": "Tech",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "575e0dc3e4b24d90d2a216d4dc5d0f09"
+              ],
+              "defaultCategory": false
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          },
+          {
+            "group_id": "6095b2832f08bb7ca1c60ffc1b2d091b",
+            "display_name": "Kids & Baby",
+            "count": 2,
+            "data": {
+              "url": "/kids/",
+              "sequence": 12000,
+              "isSpecial": false,
+              "identifier": "Kids & Baby",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "6095b2832f08bb7ca1c60ffc1b2d091b"
+              ],
+              "defaultCategory": false
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          },
+          {
+            "group_id": "2d95e1e17abc6c9afb85088671f65e3a",
+            "display_name": "Sport & Outdoor",
+            "count": 1,
+            "data": {
+              "url": "/sport-and-outdoor/",
+              "sequence": 15000,
+              "isSpecial": false,
+              "identifier": "Sport & Outdoor",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "2d95e1e17abc6c9afb85088671f65e3a"
+              ],
+              "defaultCategory": true
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          },
+          {
+            "group_id": "3994fedf071695a6e3324b82401f924d",
+            "display_name": "Kmart Inspired",
+            "count": 1,
+            "data": {
+              "url": "/kmart-inspired/",
+              "sequence": 26750,
+              "isSpecial": false,
+              "identifier": "Kmart Inspired",
+              "breadcrumbs": [
+                "b9805e11857bf8b29b5d9a8ea8de48b7",
+                "3994fedf071695a6e3324b82401f924d"
+              ],
+              "defaultCategory": false
+            },
+            "children": [],
+            "parents": [
+              {
+                "display_name": "All",
+                "group_id": "all"
+              }
+            ]
+          }
+        ],
+        "parents": []
+      }
+    ],
+    "results": [
+      {
+        "matched_terms": [],
+        "labels": {
+          "__cnstrc_is_global_bestseller": {
+            "display_name": "is_global_bestseller",
+            "value": null
+          }
+        },
+        "data": {
+          "id": "P_42806882",
+          "uri": "/product/maltesers-milk-chocolate-gift-box-400g-42806882/",
+          "url": "/product/maltesers-milk-chocolate-gift-box-400g-42806882/",
+          "video": {},
+          "Brand": "Maltesers",
+          "badges": [],
+          "image_url": "https://assets.kmart.com.au/transform/f7bf9d49-6de3-4420-9412-f910e7127cbc/42806882-1?io=transform:extend,width:300,height:300",
+          "altImages": [
+            "f4456295-9eb4-4b99-a1a7-56d34e349b39/42806882-2",
+            "44e7e8ee-7b84-432b-a0f1-2f79e5e623b2/42806882-3",
+            "0cf272c9-d2de-40c5-811d-05748a7b9254/42806882-4",
+            "49319d9b-9565-4a1e-b5e7-3f991c860ced/42806882-5",
+            "6cb8e550-c422-4358-b0cb-609e7c131527/42806882-6",
+            "d101c7fe-6539-481d-9019-c30ba52c51c0/42806882-7"
+          ],
+          "FreeShipping": true,
+          "MerchDepartment": 44,
+          "AssortedProducts": false,
+          "isPreOrderActive": false,
+          "nationalInventory": false,
+          "primaryCategoryId": "14417288bd1ac0195e6c9f2e00ded3e9",
+          "FulfilmentChannel": 4,
+          "FreeShippingMetro": true,
+          "group_ids": [
+            "6e67fae3eb8cbe37468c7e08dcfe66a9",
+            "c22d0f2beefcf05505a395fd838142ac",
+            "4f0bf504bde96affac9e0b6f1d6bb288",
+            "07cae8e84999c7280d5ea3a5460517b5",
+            "165002a77e37268604059d8cc4991a58",
+            "64e1aee43e4fb58697e067d620bc0d49",
+            "acbbb25dfe0352676e90521d576e3d61",
+            "3318e836f8428fd5ab979c464599d10f",
+            "0de7f47716373f7310f48d76a19608f0",
+            "f3245778f9e1eff6a72eaf02c06f91d7",
+            "4ac03cc3eac33a2c09a9f0d130dc4d3a",
+            "14417288bd1ac0195e6c9f2e00ded3e9",
+            "bbc66c0be9e3b3b7aaef084bed915f15",
+            "1afecd6d775ca3c9766659deba5392a5",
+            "6ea408ea56e8b710aa240004af7580c1",
+            "fac0e533fcea70cda9cc5d0ec6a3397c",
+            "95c7c00d40b913d0e385c4451d01c622",
+            "369ae48032a77a63f390f4c75436ef0b",
+            "6c491067e0d080504d9175e7597d17ed",
+            "5dd6ec1a5f00c41a0224547159967041"
+          ],
+          "apn": 9300682055611,
+          "Size": "Miscellaneous",
+          "price": 16,
+          "Colour": "Multi",
+          "prices": [
+            {
+              "type": "list",
+              "amount": "16.00",
+              "country": "AU",
+              "endDate": "9999-12-31",
+              "currency": "AUD",
+              "startDate": "2025-05-05"
+            },
+            {
+              "type": "promo",
+              "amount": "8.00",
+              "country": "AU",
+              "endDate": "2025-09-07",
+              "currency": "AUD",
+              "startDate": "2025-09-01"
+            }
+          ],
+          "clearance": false,
+          "is_default": false,
+          "variation_id": "42806882",
+          "variant_video": {},
+          "variant_badges": [],
+          "SecondaryColour": "Asst"
+        },
+        "value": "Maltesers Milk Chocolate Gift Box 400g",
+        "is_slotted": false,
+        "variations": [
+          {
+            "data": {
+              "apn": 9300682055611,
+              "Size": "Miscellaneous",
+              "price": 16,
+              "Colour": "Multi",
+              "prices": [
+                {
+                  "type": "list",
+                  "amount": "16.00",
+                  "country": "AU",
+                  "endDate": "9999-12-31",
+                  "currency": "AUD",
+                  "startDate": "2025-05-05"
+                },
+                {
+                  "type": "promo",
+                  "amount": "8.00",
+                  "country": "AU",
+                  "endDate": "2025-09-07",
+                  "currency": "AUD",
+                  "startDate": "2025-09-01"
+                }
+              ],
+              "image_url": "https://assets.kmart.com.au/transform/f7bf9d49-6de3-4420-9412-f910e7127cbc/42806882-1?io=transform:extend,width:300,height:300",
+              "clearance": false,
+              "altImages": [
+                "f4456295-9eb4-4b99-a1a7-56d34e349b39/42806882-2",
+                "44e7e8ee-7b84-432b-a0f1-2f79e5e623b2/42806882-3",
+                "0cf272c9-d2de-40c5-811d-05748a7b9254/42806882-4",
+                "49319d9b-9565-4a1e-b5e7-3f991c860ced/42806882-5",
+                "6cb8e550-c422-4358-b0cb-609e7c131527/42806882-6",
+                "d101c7fe-6539-481d-9019-c30ba52c51c0/42806882-7"
+              ],
+              "is_default": false,
+              "variation_id": "42806882",
+              "variant_video": {},
+              "variant_badges": [],
+              "SecondaryColour": "Asst"
+            },
+            "value": "Maltesers Milk Chocolate Gift Box 400g"
+          }
+        ]
+      },
+      {
+        "matched_terms": [],
+        "labels": {
+          "__cnstrc_is_global_bestseller": {
+            "display_name": "is_global_bestseller",
+            "value": null
+          }
+        },
+        "data": {
+          "id": "P_42807124",
+          "uri": "/product/celebrations-box-320g-42807124/",
+          "url": "/product/celebrations-box-320g-42807124/",
+          "video": {},
+          "badges": [],
+          "altImages": [
+            "af2ce0fe-d02e-4719-a8f2-f6598b5266e3/42807124-2"
+          ],
+          "image_url": "https://assets.kmart.com.au/transform/64d6d46c-bdc3-4e03-9c37-b239c00e9a31/42807124-1?io=transform:extend,width:300,height:300",
+          "FreeShipping": true,
+          "MerchDepartment": 44,
+          "AssortedProducts": false,
+          "isPreOrderActive": false,
+          "FulfilmentChannel": 3,
+          "FreeShippingMetro": true,
+          "primaryCategoryId": "14417288bd1ac0195e6c9f2e00ded3e9",
+          "nationalInventory": false,
+          "ratings": {
+            "averageScore": 4,
+            "totalReviews": 6
+          },
+          "group_ids": [
+            "4ac03cc3eac33a2c09a9f0d130dc4d3a",
+            "e81986faeb2c7d7b51015ab9ed064816",
+            "fac0e533fcea70cda9cc5d0ec6a3397c",
+            "3318e836f8428fd5ab979c464599d10f",
+            "6ea408ea56e8b710aa240004af7580c1",
+            "290b129cea7f6323c52dfe38265c9378",
+            "64e1aee43e4fb58697e067d620bc0d49",
+            "14417288bd1ac0195e6c9f2e00ded3e9"
+          ],
+          "apn": 9300682055598,
+          "Size": "Miscellaneous",
+          "price": 16,
+          "prices": [
+            {
+              "type": "list",
+              "amount": "16.00",
+              "country": "AU",
+              "endDate": "9999-12-31",
+              "currency": "AUD",
+              "startDate": "2025-06-18"
+            },
+            {
+              "type": "promo",
+              "amount": "8.00",
+              "country": "AU",
+              "endDate": "2025-09-07",
+              "currency": "AUD",
+              "startDate": "2025-09-01"
+            }
+          ],
+          "Colour": "Multi",
+          "clearance": false,
+          "is_default": false,
+          "variation_id": "42807124",
+          "variant_video": {},
+          "variant_badges": [],
+          "SecondaryColour": "Asst"
+        },
+        "value": "Celebrations Box 320g",
+        "is_slotted": false,
+        "variations": [
+          {
+            "data": {
+              "apn": 9300682055598,
+              "Size": "Miscellaneous",
+              "price": 16,
+              "prices": [
+                {
+                  "type": "list",
+                  "amount": "16.00",
+                  "country": "AU",
+                  "endDate": "9999-12-31",
+                  "currency": "AUD",
+                  "startDate": "2025-06-18"
+                },
+                {
+                  "type": "promo",
+                  "amount": "8.00",
+                  "country": "AU",
+                  "endDate": "2025-09-07",
+                  "currency": "AUD",
+                  "startDate": "2025-09-01"
+                }
+              ],
+              "Colour": "Multi",
+              "altImages": [
+                "af2ce0fe-d02e-4719-a8f2-f6598b5266e3/42807124-2"
+              ],
+              "clearance": false,
+              "image_url": "https://assets.kmart.com.au/transform/64d6d46c-bdc3-4e03-9c37-b239c00e9a31/42807124-1?io=transform:extend,width:300,height:300",
+              "is_default": false,
+              "variation_id": "42807124",
+              "variant_video": {},
+              "variant_badges": [],
+              "SecondaryColour": "Asst"
+            },
+            "value": "Celebrations Box 320g"
+          }
+        ]
+      },
+      {
+        "matched_terms": [],
+        "labels": {
+          "__cnstrc_is_global_bestseller": {
+            "display_name": "is_global_bestseller",
+            "value": null
+          }
+        },
+        "data": {
+          "id": "P_43513901",
+          "url": "/product/baylis-and-harding-signature-collection-jojoba-vanilla-and-almond-oil-43513901/",
+          "uri": "/product/baylis-and-harding-signature-collection-jojoba-vanilla-and-almond-oil-43513901/",
+          "video": {},
+          "badges": [],
+          "SavePrice": "WAS $10",
+          "image_url": "https://assets.kmart.com.au/transform/4bda4f8e-f8d4-4787-8672-bf514b65a5ba/43513901-0?io=transform:extend,width:300,height:300",
+          "altImages": [
+            "208a9192-f14a-4072-a49d-fdca74580793/43513901-1",
+            "fe40d75c-020b-47e7-8755-0bba683c6d2d/43513901-2",
+            "a48304ab-27a9-4f98-a9b7-ca76b867c7a3/43513901-3",
+            "a93bfb3f-f38a-407b-94d7-105ad6509e8d/43513901-4"
+          ],
+          "FreeShipping": true,
+          "MerchDepartment": 85,
+          "AssortedProducts": false,
+          "isPreOrderActive": false,
+          "FreeShippingMetro": true,
+          "nationalInventory": false,
+          "FulfilmentChannel": 3,
+          "primaryCategoryId": "7a0ab697c9dad983d0777f6946e0c724",
+          "ratings": {
+            "totalReviews": 0,
+            "averageScore": 0
+          },
+          "group_ids": [
+            "60cb8622ceab6bc104a182d5b26ea44a",
+            "df647e6b382ceaac67dd6cee83563b71",
+            "009d47c9f06679277fad788febd93ee1",
+            "7cc528b2bff05773ccd378082e0d56c8",
+            "7a0ab697c9dad983d0777f6946e0c724",
+            "3de30c8abc84c4f4d5ff8e82873d9a75",
+            "09dfe6a922353ae4c89e01a17c1b213e",
+            "d8e2992c0ba8e748dd76db01c237a9d6",
+            "1e92886e640473b54f8fa5dd9455435d",
+            "3dc32ab822eb350932d388e9848c5b5e",
+            "496c27c7768d617ae1d6e2bcb4993cb1",
+            "6ed4abbdb5af46c177395861ba344739",
+            "8f8f0c1819f86e31c87c9efb0fd4db08",
+            "f29aaed132d5701bd93080a0c8643783",
+            "2249d9a13d388878fb6eb1dd59c1fbf6",
+            "c2b2bc0044a36c51714c375b37d36e5c",
+            "63782103ea77d06dc67e4a3f8dd95446",
+            "1714c8d704f7553ccbbd4365da6f4024",
+            "7812c524226eb7bab11435fe9ea7cd10"
+          ],
+          "apn": 17854120624,
+          "Size": "One Size",
+          "price": 5,
+          "prices": [
+            {
+              "type": "list",
+              "amount": "5.00",
+              "country": "AU",
+              "endDate": "9999-12-31",
+              "currency": "AUD",
+              "startDate": "2025-07-29"
+            },
+            {
+              "type": "promo",
+              "amount": "10.00",
+              "country": "AU",
+              "endDate": "2025-05-11",
+              "currency": "AUD",
+              "startDate": "2025-04-24"
+            }
+          ],
+          "Colour": "Pink",
+          "clearance": true,
+          "is_default": false,
+          "stateOOS": {
+            "WA": "6",
+            "NT": "6",
+            "TAS": "6",
+            "ACT": "6"
+          },
+          "variation_id": "43513901",
+          "variant_video": {},
+          "variant_badges": [
+            "Clearance"
+          ],
+          "SecondaryColour": "Mothers Dy"
+        },
+        "value": "Baylis & Harding Signature Collection - Jojoba, Vanilla and Almond Oil",
+        "is_slotted": false,
+        "variations": [
+          {
+            "data": {
+              "apn": 17854120624,
+              "Size": "One Size",
+              "price": 5,
+              "prices": [
+                {
+                  "type": "list",
+                  "amount": "5.00",
+                  "country": "AU",
+                  "endDate": "9999-12-31",
+                  "currency": "AUD",
+                  "startDate": "2025-07-29"
+                },
+                {
+                  "type": "promo",
+                  "amount": "10.00",
+                  "country": "AU",
+                  "endDate": "2025-05-11",
+                  "currency": "AUD",
+                  "startDate": "2025-04-24"
+                }
+              ],
+              "Colour": "Pink",
+              "clearance": true,
+              "image_url": "https://assets.kmart.com.au/transform/4bda4f8e-f8d4-4787-8672-bf514b65a5ba/43513901-0?io=transform:extend,width:300,height:300",
+              "altImages": [
+                "208a9192-f14a-4072-a49d-fdca74580793/43513901-1",
+                "fe40d75c-020b-47e7-8755-0bba683c6d2d/43513901-2",
+                "a48304ab-27a9-4f98-a9b7-ca76b867c7a3/43513901-3",
+                "a93bfb3f-f38a-407b-94d7-105ad6509e8d/43513901-4"
+              ],
+              "is_default": false,
+              "stateOOS": {
+                "WA": "6",
+                "NT": "6",
+                "TAS": "6",
+                "ACT": "6"
+              },
+              "variation_id": "43513901",
+              "variant_video": {},
+              "variant_badges": [
+                "Clearance"
+              ],
+              "SecondaryColour": "Mothers Dy"
+            },
+            "value": "Baylis & Harding Signature Collection - Jojoba, Vanilla and Almond Oil"
+          }
+        ]
+      }
+    ],
+    "sort_options": [
+      {
+        "sort_by": "relevance",
+        "display_name": "Popular",
+        "sort_order": "descending",
+        "status": "selected",
+        "hidden": false
+      },
+      {
+        "sort_by": "numberOfDaysSinceStartDate",
+        "display_name": "New",
+        "sort_order": "ascending",
+        "status": "",
+        "hidden": false
+      },
+      {
+        "sort_by": "price",
+        "display_name": "$",
+        "sort_order": "ascending",
+        "status": "",
+        "hidden": false
+      },
+      {
+        "sort_by": "price",
+        "display_name": "$$$",
+        "sort_order": "descending",
+        "status": "",
+        "hidden": false
+      }
+    ],
+    "refined_content": [],
+    "total_num_results": 100,
+    "features": [
+      {
+        "feature_name": "a_a_test",
+        "display_name": "a_a_test",
+        "enabled": true,
+        "variant": null
+      },
+      {
+        "feature_name": "auto_generated_refined_query_rules",
+        "display_name": "Affinity Engine",
+        "enabled": true,
+        "variant": {
+          "name": "default_rules",
+          "display_name": "Default weights"
+        }
+      },
+      {
+        "feature_name": "custom_autosuggest_ui",
+        "display_name": "custom_autosuggest_ui",
+        "enabled": true,
+        "variant": {
+          "name": "custom_autosuggest_ui_image_result_count",
+          "display_name": "custom_autosuggest_ui_image_result_count"
+        }
+      },
+      {
+        "feature_name": "disable_test_only_global_rules_browse",
+        "display_name": "Disables global refined filter rules with include_in_test=1 column",
+        "enabled": false,
+        "variant": null
+      },
+      {
+        "feature_name": "disable_test_only_global_rules_search",
+        "display_name": "Disables global refined query rules with include_in_test=1 column",
+        "enabled": false,
+        "variant": null
+      },
+      {
+        "feature_name": "filter_items",
+        "display_name": "Filter-item boosts",
+        "enabled": true,
+        "variant": {
+          "name": "filter_items_w_atcs_and_purchases",
+          "display_name": ""
+        }
+      },
+      {
+        "feature_name": "manual_searchandizing",
+        "display_name": "Searchandizing",
+        "enabled": true,
+        "variant": null
+      },
+      {
+        "feature_name": "personalization",
+        "display_name": "Personalization",
+        "enabled": true,
+        "variant": {
+          "name": "default_personalization",
+          "display_name": "Default Personalization"
+        }
+      },
+      {
+        "feature_name": "query_items",
+        "display_name": "Learn To Rank",
+        "enabled": true,
+        "variant": {
+          "name": "query_items_ctr_and_l2r",
+          "display_name": "CTR & LTR"
+        }
+      },
+      {
+        "feature_name": "use_enriched_attributes_as_fuzzy_searchable",
+        "display_name": "use_enriched_attributes_as_fuzzy_searchable",
+        "enabled": false,
+        "variant": null
+      },
+      {
+        "feature_name": "use_reranker_service_for_all",
+        "display_name": "[DEPRECATED] Use reranker service to rerank search and browse results",
+        "enabled": false,
+        "variant": null
+      },
+      {
+        "feature_name": "use_reranker_service_for_browse",
+        "display_name": "Use reranker service to rerank browse / collections results",
+        "enabled": true,
+        "variant": {
+          "name": "browse_reranker_v0_top100",
+          "display_name": "browse_reranker_v0_top100"
+        }
+      },
+      {
+        "feature_name": "use_reranker_service_for_search",
+        "display_name": "Use reranker service to rerank search results",
+        "enabled": true,
+        "variant": {
+          "name": "search_reranker_v0_top100",
+          "display_name": "search_reranker_v0_top100"
+        }
+      }
+    ],
+    "related_searches": [],
+    "related_browse_pages": []
+  },
+  "result_id": "ecbeebd0-d555-433b-852f-d08920f008d9",
+  "request": {
+    "sort_by": "relevance",
+    "sort_order": "descending",
+    "num_results_per_page": 3,
+    "filters": {},
+    "original_query": "thoughtful gifts for someone who finds joy in making things with their hands",
+    "term": "thoughtful gifts finds joy making things hands",
+    "page": 1,
+    "fmt_options": {
+      "groups_start": "current",
+      "groups_max_depth": 1,
+      "show_hidden_facets": false,
+      "show_hidden_fields": false,
+      "show_protected_facets": false
+    },
+    "section": "Products",
+    "features": {
+      "query_items": true,
+      "a_a_test": true,
+      "auto_generated_refined_query_rules": true,
+      "manual_searchandizing": true,
+      "personalization": true,
+      "filter_items": true,
+      "use_reranker_service_for_search": true,
+      "use_reranker_service_for_browse": true,
+      "use_reranker_service_for_all": false,
+      "custom_autosuggest_ui": true,
+      "disable_test_only_global_rules_search": false,
+      "disable_test_only_global_rules_browse": false,
+      "use_enriched_attributes_as_fuzzy_searchable": false
+    },
+    "feature_variants": {
+      "query_items": "query_items_ctr_and_l2r",
+      "a_a_test": null,
+      "auto_generated_refined_query_rules": "default_rules",
+      "manual_searchandizing": null,
+      "personalization": "default_personalization",
+      "filter_items": "filter_items_w_atcs_and_purchases",
+      "use_reranker_service_for_search": "search_reranker_v0_top100",
+      "use_reranker_service_for_browse": "browse_reranker_v0_top100",
+      "use_reranker_service_for_all": null,
+      "custom_autosuggest_ui": "custom_autosuggest_ui_image_result_count",
+      "disable_test_only_global_rules_search": null,
+      "disable_test_only_global_rules_browse": null,
+      "use_enriched_attributes_as_fuzzy_searchable": null
+    },
+    "searchandized_items": {}
+  }
+}

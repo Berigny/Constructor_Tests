@@ -1,0 +1,55 @@
+Test: Row1 | Persona: The Chef (Open Budget) | Query: gift for a culinary artist who loves creating memorable meals | Filters: Food & Drink | $50+
+https://www.kmart.com.au/product/lemon-juicer-43615773/
+https://www.kmart.com.au/product/7.5l-air-fryer-43533725/
+https://www.kmart.com.au/product/231-piece-mini-blocks-food-series:-candy-cake-43467327/
+
+Test: Row2 | Persona: The Creative (Under $20) | Query: thoughtful gifts for someone who finds joy in making things with their hands | Filters: Artistry,Craft Supplies,DIY | [Price]=-inf-20
+https://www.kmart.com.au/product/maltesers-milk-chocolate-gift-box-400g-42806882/
+https://www.kmart.com.au/product/celebrations-box-320g-42807124/
+https://www.kmart.com.au/product/baylis-and-harding-signature-collection-jojoba-vanilla-and-almond-oil-43513901/
+
+Test: Row3 | Persona: The 90s Kid (Under $50) | Query: gifts that evoke nostalgia and retro charm from the 90s | Filters: Entertainment,Vintage & Rare | [Price]=-inf-50
+https://www.kmart.com.au/product/oxx-bodycare-hand-sanitiser-30ml-cherry-scented-43593866/
+https://www.kmart.com.au/product/flower-charm-necklace-white-pink-and-gold-tone-s171131/
+https://www.kmart.com.au/product/motel-bag-charm-keyring-pink-73600756/
+
+Test: Row4 | Persona: The Eco-Warrior (Open Budget) | Query: thoughtful gifts for the environmentally conscious individual | Filters: Sustainable | $20+
+https://www.kmart.com.au/product/maltesers-milk-chocolate-gift-box-400g-42806882/
+https://www.kmart.com.au/product/baylis-and-harding-signature-collection-jojoba-vanilla-and-almond-oil-43513901/
+https://www.kmart.com.au/product/jasmine-glass-jar-candle-42351818/
+
+Test: Row5 | Persona: The Plant Parent (Under $100) | Query: gifts for someone whose home is a lush green sanctuary | Filters: Home & Pets | [Price]=-inf-100
+https://www.kmart.com.au/product/jasmine-glass-jar-candle-42351818/
+https://www.kmart.com.au/product/maltesers-milk-chocolate-gift-box-400g-42806882/
+https://www.kmart.com.au/product/celebrations-box-320g-42807124/
+
+Test: Row6 | Persona: The Foodie (Under $30) | Query: curated gifts for a gourmet enthusiast who enjoys culinary explorations | Filters: Food & Drink | [Price]=-inf-30
+https://www.kmart.com.au/product/tiki-cocktails-by-shelly-slipsmith-book-43663712/
+https://www.kmart.com.au/product/celebrations-box-320g-42807124/
+https://www.kmart.com.au/product/3-layer-food-storage-container-43532780/
+
+Test: Row7 | Persona: The Wellness Enthusiast (Open Budget) | Query: gifts for someone who prioritizes self-care and mindfulness | Filters: Health & Wellbeing,Body & Spirit | $50+
+https://www.kmart.com.au/product/the-ultimate-gift-for-teens-dollar50-gift-card-43130948/
+https://www.kmart.com.au/product/mindful-activities-for-you-book-42958802/
+https://www.kmart.com.au/product/gratitude-book-43373857/
+
+Test: Row8 | Persona: The Globetrotter (Under $50) | Query: gifts for the wanderlust-filled explorer who lives for adventure | Filters: Travel | [Price]=-inf-50
+https://www.kmart.com.au/product/lonely-planet:-vietnam-book-43662913/
+https://www.kmart.com.au/product/everlast-mens-hiking-shoes-s151038/
+https://www.kmart.com.au/product/lonely-planet:-japan-book-43662937/
+
+Test: Row9 | Persona: The Tech Lover (Open Budget) | Query: gifts for the tech-savvy innovator who loves gadgets | Filters: Electronics,Gadgets | $100+
+https://www.kmart.com.au/product/adjustable-laptop-stand-42872535/
+https://www.kmart.com.au/product/laptop-stand-with-hub-and-phone-holder-43241521/
+https://www.kmart.com.au/product/mini-mechanical-gaming-keyboard-43099771/
+
+Test: Row10 | Persona: The Musician (Under $50) | Query: thoughtful gifts for the artist who expresses themselves through music | Filters: Music | [Price]=-inf-50
+https://www.kmart.com.au/product/the-story-of-chanel:-the-ultimate-guide-to-the-iconic-fashion-house-by-emma-baxter-wright-book-43662357/
+https://www.kmart.com.au/product/amber-and-patchouli-zen-diffuser-43390694/
+https://www.kmart.com.au/product/mini-music-instrument-assorted-43454921/
+
+Test: Row11 | Persona: The Minimalist (Under $100) | Query: gifts for someone with a clean and uncluttered aesthetic | Filters: Home & Living,Home Decor | [Price]=-inf-100
+https://www.kmart.com.au/product/jasmine-glass-jar-candle-42351818/
+https://www.kmart.com.au/product/hydrating-sheet-mask-rose-42984542/
+https://www.kmart.com.au/product/baylis-and-harding-signature-collection-jojoba-vanilla-and-almond-oil-43513901/
+
