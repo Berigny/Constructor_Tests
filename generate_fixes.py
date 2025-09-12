@@ -2,8 +2,35 @@ import os
 import json
 import argparse
 import re
+import requests
 
-def generate_fixes(prompts_dir, fixes_dir):
+def call_openrouter_api(prompt):
+    """
+    Calls the OpenRouter API with the given prompt.
+    """
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    base_url = os.environ.get("OPENROUTER_BASE_URL")
+    model = os.environ.get("OPENROUTER_MODEL")
+
+    if not all([api_key, base_url, model]):
+        raise ValueError("Please set the OPENROUTER_API_KEY, OPENROUTER_BASE_URL, and OPENROUTER_MODEL environment variables.")
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": model,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ]
+    }
+
+    response = requests.post(f"{base_url}/chat/completions", headers=headers, json=data)
+    response.raise_for_status()
+    return response.json()
+
+def generate_fixes(prompts_dir, fixes_dir, use_llm=False):
     """
     Generates LLM fix files based on the prompts.
     """
@@ -18,7 +45,29 @@ def generate_fixes(prompts_dir, fixes_dir):
         with open(prompt_path, "r") as f:
             content = f.read()
 
-        # Extract the JSON block from the markdown file
+        fix_filename = os.path.splitext(prompt_file)[0] + ".json"
+        fix_path = os.path.join(fixes_dir, fix_filename)
+
+        if use_llm:
+            try:
+                api_response = call_openrouter_api(content)
+                llm_json_str = api_response["choices"][0]["message"]["content"]
+                # The LLM might return a string containing a JSON block
+                json_match = re.search(r"```json\n(.*?)\n```", llm_json_str, re.DOTALL)
+                if json_match:
+                    llm_json_str = json_match.group(1)
+
+                fix = json.loads(llm_json_str)
+                with open(fix_path, "w") as f:
+                    json.dump(fix, f, indent=2)
+                continue
+            except Exception as e:
+                print(f"Error calling LLM for {prompt_file}: {e}")
+                # Fallback to simple heuristics if LLM fails
+                pass
+
+
+        # Extract the JSON block from the markdown file for heuristic-based fixing
         json_match = re.search(r"```json\n(.*?)\n```", content, re.DOTALL)
         if not json_match:
             continue
@@ -56,9 +105,6 @@ def generate_fixes(prompts_dir, fixes_dir):
             fix["rationale"] = "Added 90s motifs and excluded irrelevant categories."
             fix["confidence"] = 0.7
 
-        fix_filename = os.path.splitext(prompt_file)[0] + ".json"
-        fix_path = os.path.join(fixes_dir, fix_filename)
-
         with open(fix_path, "w") as f:
             json.dump(fix, f, indent=2)
 
@@ -66,7 +112,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate LLM fix files from prompts.")
     parser.add_argument("--prompts-dir", required=True, help="Directory containing the prompt files.")
     parser.add_argument("--fixes-dir", required=True, help="Directory to save the fix files.")
+    parser.add_argument("--use-llm", action="store_true", help="Use LLM to generate fixes.")
     args = parser.parse_args()
 
-    generate_fixes(args.prompts_dir, args.fixes_dir)
+    generate_fixes(args.prompts_dir, args.fixes_dir, args.use_llm)
     print(f"Fixes generated in {args.fixes_dir}")
