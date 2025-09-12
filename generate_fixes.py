@@ -4,6 +4,12 @@ import argparse
 import re
 import requests
 
+# Optional import: Vertex AI via LangChain wrapper
+try:
+    from langchain_google_vertexai import ChatVertexAI  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    ChatVertexAI = None
+
 def call_openrouter_api(prompt):
     """
     Calls the OpenRouter API with the given prompt.
@@ -30,6 +36,44 @@ def call_openrouter_api(prompt):
     response.raise_for_status()
     return response.json()
 
+
+def call_vertex_ai(prompt):
+    """
+    Calls Google Vertex AI (Generative AI) using langchain-google-vertexai.
+
+    Env vars used:
+      - GOOGLE_CLOUD_PROJECT (required)
+      - VERTEX_LOCATION (default: us-central1)
+      - VERTEX_MODEL (default: gemini-1.5-flash-001)
+
+    Authentication: relies on Application Default Credentials (ADC).
+    Run `gcloud auth application-default login` or set GOOGLE_APPLICATION_CREDENTIALS.
+    """
+    if ChatVertexAI is None:
+        raise ImportError(
+            "langchain-google-vertexai not installed. Add to requirements and pip install."
+        )
+
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT")
+    if not project:
+        raise ValueError(
+            "GOOGLE_CLOUD_PROJECT is required for Vertex AI. Set the env var or pass credentials."
+        )
+    location = os.environ.get("VERTEX_LOCATION", "us-central1")
+    model = os.environ.get("VERTEX_MODEL", "gemini-1.5-flash-001")
+
+    llm = ChatVertexAI(
+        model_name=model,
+        project=project,
+        location=location,
+        model_kwargs={"request_timeout": 60},
+    )
+    resp = llm.invoke(prompt)
+    content = getattr(resp, "content", str(resp))
+
+    # Normalize to OpenAI-like structure that downstream parsing expects
+    return {"choices": [{"message": {"content": content}}]}
+
 def generate_fixes(prompts_dir, fixes_dir, use_llm=False):
     """
     Generates LLM fix files based on the prompts.
@@ -50,7 +94,11 @@ def generate_fixes(prompts_dir, fixes_dir, use_llm=False):
 
         if use_llm:
             try:
-                api_response = call_openrouter_api(content)
+                provider = os.environ.get("LLM_PROVIDER", "openrouter").lower()
+                if provider in ("vertex", "vertexai", "google-vertex", "google"):
+                    api_response = call_vertex_ai(content)
+                else:
+                    api_response = call_openrouter_api(content)
                 llm_json_str = api_response["choices"][0]["message"]["content"]
                 # The LLM might return a string containing a JSON block
                 json_match = re.search(r"```json\n(.*?)\n```", llm_json_str, re.DOTALL)
