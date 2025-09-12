@@ -95,3 +95,11 @@ requery-fixes:
 clean:
 	rm -rf "$(OUT_DIR)"
 	@echo "Removed $(OUT_DIR)"
+
+run-iteratively:
+	@for i in $$(seq 1 5); do \
+		echo "---- Running Iteration $$i ----"; \
+		make prompts OUT_DIR=out_run_$$i; \
+		python3 generate_fixes.py --prompts-dir out_run_$$i/prompts --fixes-dir out_run_$$i/llm_fixes; \
+		make requery-fixes OUT_DIR=out_run_$$i; \
+	done
