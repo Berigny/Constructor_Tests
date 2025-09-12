@@ -97,9 +97,20 @@ clean:
 	@echo "Removed $(OUT_DIR)"
 
 run-iteratively:
-	@for i in $$(seq 1 5); do \
-		echo "---- Running Iteration $$i ----"; \
-		make prompts OUT_DIR=out_run_$$i; \
-		python3 generate_fixes.py --prompts-dir out_run_$$i/prompts --fixes-dir out_run_$$i/llm_fixes; \
-		make requery-fixes OUT_DIR=out_run_$$i; \
-	done
+	@if [ "$(USE_LLM)" = "true" ]; then \
+		echo "Using LLM to generate fixes. Make sure OPENROUTER_API_KEY, OPENROUTER_BASE_URL, and OPENROUTER_MODEL are set."; \
+		for i in $$(seq 1 5); do \
+			echo "---- Running Iteration $$i ----"; \
+			make prompts OUT_DIR=out_run_$$i; \
+			python3 generate_fixes.py --prompts-dir out_run_$$i/prompts --fixes-dir out_run_$$i/llm_fixes --use-llm; \
+			make requery-fixes OUT_DIR=out_run_$$i; \
+		done; \
+	else \
+		echo "Using local heuristics to generate fixes."; \
+		for i in $$(seq 1 5); do \
+			echo "---- Running Iteration $$i ----"; \
+			make prompts OUT_DIR=out_run_$$i; \
+			python3 generate_fixes.py --prompts-dir out_run_$$i/prompts --fixes-dir out_run_$$i/llm_fixes; \
+			make requery-fixes OUT_DIR=out_run_$$i; \
+		done; \
+	fi
