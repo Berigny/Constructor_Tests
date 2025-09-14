@@ -98,7 +98,7 @@ clean:
 
 run-iteratively:
 	@if [ "$(USE_LLM)" = "true" ]; then \
-		echo "Using LLM to generate fixes. Make sure OPENROUTER_API_KEY, OPENROUTER_BASE_URL, and OPENROUTER_MODEL are set."; \
+		echo "Using LLM to generate fixes. Make sure CONSTRUCTORTEST, OPENROUTER_BASE_URL, and OPENROUTER_MODEL are set."; \
 		for i in $$(seq 1 5); do \
 			echo "---- Running Iteration $$i ----"; \
 			make prompts OUT_DIR=out_run_$$i; \
