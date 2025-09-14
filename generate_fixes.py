@@ -13,13 +13,23 @@ except Exception:  # pragma: no cover - optional dependency
 def call_openrouter_api(prompt):
     """
     Calls the OpenRouter API with the given prompt.
-    """
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    base_url = os.environ.get("OPENROUTER_BASE_URL")
-    model = os.environ.get("OPENROUTER_MODEL")
 
-    if not all([api_key, base_url, model]):
-        raise ValueError("Please set the OPENROUTER_API_KEY, OPENROUTER_BASE_URL, and OPENROUTER_MODEL environment variables.")
+    Looks for standard OpenRouter environment variables and falls back to
+    the GitHub secret `CONSTRUCTORTEST` for the API key. Defaults are
+    provided for the base URL and model so that only the key needs to be
+    configured in most setups.
+    """
+    api_key = (
+        os.environ.get("OPENROUTER_API_KEY")
+        or os.environ.get("CONSTRUCTORTEST")
+    )
+    base_url = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    model = os.environ.get("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+
+    if not api_key:
+        raise ValueError(
+            "Please set OPENROUTER_API_KEY or CONSTRUCTORTEST with your OpenRouter API key."
+        )
 
     headers = {
         "Authorization": f"Bearer {api_key}",
