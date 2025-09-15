@@ -27,7 +27,7 @@ FLAGS = \
 
 URL_FLAGS = --url-base "$(URL_BASE)"
 
-.PHONY: help install venv install-venv run run-autocheck run-merge print-urls prompts requery-fixes clean
+.PHONY: help install venv install-venv run run-autocheck run-merge print-urls prompts requery-fixes clean app unsplash unsplash-quick unsplash-dedupe
 
 help:
 	@echo "Constructor Evaluator Makefile"
@@ -42,8 +42,17 @@ help:
 	@echo "  print-urls      Print only product URLs (uses URL_BASE)"
 	@echo "  prompts         Emit per-test LLM prompts to $(OUT_DIR)/prompts/"
 	@echo "  requery-fixes   Apply LLM fixes from $(OUT_DIR)/llm_fixes and re-evaluate"
+	@echo "  app             Launch Streamlit quiz app"
+	@echo "  unsplash        Download images from Unsplash (see vars below)"
+	@echo "  unsplash-quick  Quick Unsplash test (limit=3)"
+	@echo "  unsplash-dedupe Rename images to <photo_id>.jpg and remove duplicates"
 	@echo "  clean           Remove output directory (OUT_DIR=$(OUT_DIR))"
 	@echo ""
+	@echo "Unsplash variables (override via make VAR=value):"
+	@echo "  UNSPLASH_LIMIT (default: empty = all)"
+	@echo "  UNSPLASH_OUT_DIR=$(UNSPLASH_OUT_DIR)"
+	@echo "  UNSPLASH_SLEEP=$(UNSPLASH_SLEEP)"
+	@echo "  (Optional) export UNSPLASH_ACCESS_KEY in your shell or .env.local"
 	@echo "Variables (override via make VAR=value):"
 	@echo "  INPUT=$(INPUT) URL_COL=$(URL_COL) BUDGET_COL=$(BUDGET_COL) PROFILE_COL=$(PROFILE_COL) FILTERS_COL=$(FILTERS_COL) OUT_DIR=$(OUT_DIR) TOPK=$(TOPK)"
 	@echo "  HUMAN_SCORES=$(HUMAN_SCORES)"
@@ -64,12 +73,14 @@ install-venv: venv
 	. .venv/bin/activate && pip install -U pip && pip install -r requirements.txt
 	@echo "Installed into .venv. Activate with: source .venv/bin/activate"
 
-run: run-autocheck
-	@echo "---- $(PWD)/$(OUT_DIR)/eval_autocheck.csv ----"
-	@cat "$(OUT_DIR)/eval_autocheck.csv" || true
-	@echo "\n---- Product URLs -> $(PWD)/$(OUT_DIR)/product_urls.txt ----"
-	@$(PY) $(SCRIPT) $(FLAGS) $(URL_FLAGS) --print-urls-grouped > "$(OUT_DIR)/product_urls.txt" || true
-	@wc -l "$(OUT_DIR)/product_urls.txt" 2>/dev/null | awk '{print $1, "URLs"}' || true
+run:
+	@make run-iteratively USE_LLM=true
+	@echo "\n---- Concatenating all product URLs into $(PWD)/out/product_urls_ALL.txt ----"
+	@cat out_run_*/product_urls.txt 2>/dev/null > "$(OUT_DIR)/product_urls_ALL.txt" || true
+	@wc -l "$(OUT_DIR)/product_urls_ALL.txt" 2>/dev/null | awk '{print $1, "total URLs"}' || true
+	@echo "\n---- All URLs (combined) ----"
+	@cat "$(OUT_DIR)/product_urls_ALL.txt" || true
+
 
 run-autocheck:
 	$(PY) $(SCRIPT) $(FLAGS) $(URL_FLAGS)
@@ -96,9 +107,35 @@ clean:
 	rm -rf "$(OUT_DIR)"
 	@echo "Removed $(OUT_DIR)"
 
+app:
+	set -a; [ -f .env.local ] && . .env.local; [ -f .env ] && . .env; set +a; \
+	streamlit run streamlit_app.py
+
+# ---------------- Unsplash helpers ----------------
+
+UNSPLASH_SCRIPT := download_unsplash_images.py
+UNSPLASH_OUT_DIR ?= unsplash_images
+UNSPLASH_SLEEP ?= 0.6
+
+unsplash:
+	set -a; [ -f .env.local ] && . .env.local; [ -f .env ] && . .env; set +a; \
+	$(PY) $(UNSPLASH_SCRIPT) \
+	  $(if $(UNSPLASH_LIMIT),--limit $(UNSPLASH_LIMIT),) \
+	  --out-dir "$(UNSPLASH_OUT_DIR)" \
+	  --sleep $(UNSPLASH_SLEEP) \
+	  $(if $(UNSPLASH_ONLY),--only-queries $(UNSPLASH_ONLY),)
+
+unsplash-quick:
+	$(MAKE) unsplash UNSPLASH_LIMIT=3 UNSPLASH_OUT_DIR=unsplash_images_test
+
+unsplash-dedupe:
+	$(PY) unsplash_rename_and_dedupe.py --dir unsplash_images
+
 run-iteratively:
+	@# Auto-load env vars from .env.local/.env and export them for subcommands
 	@if [ "$(USE_LLM)" = "true" ]; then \
-		echo "Using LLM to generate fixes. Make sure OPENROUTER_API_KEY, OPENROUTER_BASE_URL, and OPENROUTER_MODEL are set."; \
+		set -a; [ -f .env.local ] && . .env.local; [ -f .env ] && . .env; set +a; \
+		echo "Using LLM to generate fixes. OPENROUTER_* taken from .env.local/.env if present."; \
 		for i in $$(seq 1 5); do \
 			echo "---- Running Iteration $$i ----"; \
 			make prompts OUT_DIR=out_run_$$i; \
@@ -106,6 +143,7 @@ run-iteratively:
 			make requery-fixes OUT_DIR=out_run_$$i; \
 		done; \
 	else \
+		set -a; [ -f .env.local ] && . .env.local; [ -f .env ] && . .env; set +a; \
 		echo "Using local heuristics to generate fixes."; \
 		for i in $$(seq 1 5); do \
 			echo "---- Running Iteration $$i ----"; \

@@ -1,0 +1,357 @@
+{
+  "who": {
+    "parent": {
+      "gender": {
+        "male": {
+          "age": {
+            "0_2": {
+              "interests": ["soft_toys_&_plush", "sensory_play", "teething_&_comfort", "first_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "3_5": {
+              "interests": ["imaginative_play", "stacking_&_sorting", "building_blocks", "storytime_&_picture_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "6_8": {
+              "interests": ["stem_&_science_kits", "arts_&_crafts", "board_games_&_puzzles", "outdoor_play"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "9_12": {
+              "interests": ["tech_&_gaming", "collectibles", "sports_&_outdoor", "reading"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "13_17": {
+              "interests": ["fashion_&_beauty", "music", "diy", "sports_&_outdoor"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        },
+        "female": {
+          "age": {
+            "0_2": {
+              "interests": ["soft_toys_&_plush", "sensory_play", "teething_&_comfort", "first_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "3_5": {
+              "interests": ["imaginative_play", "stacking_&_sorting", "building_blocks", "storytime_&_picture_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "6_8": {
+              "interests": ["stem_&_science_kits", "arts_&_crafts", "board_games_&_puzzles", "outdoor_play"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "9_12": {
+              "interests": ["tech_&_gaming", "collectibles", "sports_&_outdoor", "reading"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "13_17": {
+              "interests": ["fashion_&_beauty", "music", "diy", "sports_&_outdoor"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "18_plus":
+            {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        },
+        "other": {
+          "age": {
+            "0_2": {
+              "interests": ["soft_toys_&_plush", "sensory_play", "teething_&_comfort", "first_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "3_5": {
+              "interests": ["imaginative_play", "stacking_&_sorting", "building_blocks", "storytime_&_picture_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "6_8": {
+              "interests": ["stem_&_science_kits", "arts_&_crafts", "board_games_&_puzzles", "outdoor_play"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "9_12": {
+              "interests": ["tech_&_gaming", "collectibles", "sports_&_outdoor", "reading"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "13_17": {
+              "interests": ["fashion_&_beauty", "music", "diy", "sports_&_outdoor"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        }
+      }
+    },
+    "grandparent": {
+      "gender": {
+        "male": {
+          "age": {
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        },
+        "female": {
+          "age": {
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        },
+        "other": {
+          "age": {
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        }
+      }
+    },
+    "partner": {
+      "gender": {
+        "male": {
+          "age": {
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        },
+        "female": {
+          "age": {
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        },
+        "other": {
+          "age": {
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        }
+      }
+    },
+    "child": {
+      "gender": {
+        "male": {
+          "age": {
+            "0_2": {
+              "interests": ["soft_toys_&_plush", "sensory_play", "teething_&_comfort", "first_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "3_5": {
+              "interests": ["imaginative_play", "stacking_&_sorting", "building_blocks", "storytime_&_picture_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "6_8": {
+              "interests": ["stem_&_science_kits", "arts_&_crafts", "board_games_&_puzzles", "outdoor_play"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "9_12": {
+              "interests": ["tech_&_gaming", "collectibles", "sports_&_outdoor", "reading"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "13_17": {
+              "interests": ["fashion_&_beauty", "music", "diy", "sports_&_outdoor"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        },
+        "female": {
+          "age": {
+            "0_2": {
+              "interests": ["soft_toys_&_plush", "sensory_play", "teething_&_comfort", "first_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "3_5": {
+              "interests": ["imaginative_play", "stacking_&_sorting", "building_blocks", "storytime_&_picture_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "6_8": {
+              "interests": ["stem_&_science_kits", "arts_&_crafts", "board_games_&_puzzles", "outdoor_play"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "9_12": {
+              "interests": ["tech_&_gaming", "collectibles", "sports_&_outdoor", "reading"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "13_17": {
+              "interests": ["fashion_&_beauty", "music", "diy", "sports_&_outdoor"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        },
+        "other": {
+          "age": {
+            "0_2": {
+              "interests": ["soft_toys_&_plush", "sensory_play", "teething_&_comfort", "first_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "3_5": {
+              "interests": ["imaginative_play", "stacking_&_sorting", "building_blocks", "storytime_&_picture_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "6_8": {
+              "interests": ["stem_&_science_kits", "arts_&_crafts", "board_games_&_puzzles", "outdoor_play"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "9_12": {
+              "interests": ["tech_&_gaming", "collectibles", "sports_&_outdoor", "reading"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "13_17": {
+              "interests": ["fashion_&_beauty", "music", "diy", "sports_&_outdoor"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        }
+      }
+    },
+    "friend_or_relative": {
+      "gender": {
+        "male": {
+          "age": {
+            "0_2": {
+              "interests": ["soft_toys_&_plush", "sensory_play", "teething_&_comfort", "first_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "3_5": {
+              "interests": ["imaginative_play", "stacking_&_sorting", "building_blocks", "storytime_&_picture_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "6_8": {
+              "interests": ["stem_&_science_kits", "arts_&_crafts", "board_games_&_puzzles", "outdoor_play"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "9_12": {
+              "interests": ["tech_&_gaming", "collectibles", "sports_&_outdoor", "reading"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "13_17": {
+              "interests": ["fashion_&_beauty", "music", "diy", "sports_&_outdoor"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        },
+        "female": {
+          "age": {
+            "0_2": {
+              "interests": ["soft_toys_&_plush", "sensory_play", "teething_&_comfort", "first_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "3_5": {
+              "interests": ["imaginative_play", "stacking_&_sorting", "building_blocks", "storytime_&_picture_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "6_8": {
+              "interests": ["stem_&_science_kits", "arts_&_crafts", "board_games_&_puzzles", "outdoor_play"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "9_12": {
+              "interests": ["tech_&_gaming", "collectibles", "sports_&_outdoor", "reading"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "13_17": {
+              "interests": ["fashion_&_beauty", "music", "diy", "sports_&_outdoor"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        },
+        "other": {
+          "age": {
+            "0_2": {
+              "interests": ["soft_toys_&_plush", "sensory_play", "teething_&_comfort", "first_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "3_5": {
+              "interests": ["imaginative_play", "stacking_&_sorting", "building_blocks", "storytime_&_picture_books"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "6_8": {
+              "interests": ["stem_&_science_kits", "arts_&_crafts", "board_games_&_puzzles", "outdoor_play"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "9_12": {
+              "interests": ["tech_&_gaming", "collectibles", "sports_&_outdoor", "reading"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "13_17": {
+              "interests": ["fashion_&_beauty", "music", "diy", "sports_&_outdoor"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            },
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        }
+      }
+    },
+    "coworker": {
+      "gender": {
+        "male": {
+          "age": {
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        },
+        "female": {
+          "age": {
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        },
+        "other": {
+          "age": {
+            "18_plus": {
+              "interests": ["cooking_&_baking", "relaxation_&_down_time", "gardening", "reading", "tech_&_gaming", "diy", "arts_&_creativity", "board_games_&_puzzles", "sports_&_outdoor", "fashion_&_beauty", "music"],
+              "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+            }
+          }
+        }
+      }
+    },
+    "pet": {
+      "pet_type": {
+        "dog": {
+          "interests": ["chew_toys_&_enrichment", "cozy_beds_&_blankets", "grooming_&_self_care", "outdoor_adventures", "treats_&_snacks", "training_&_tricks", "fashion_&_accessories", "wellness_&_diet"],
+          "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+        },
+        "cat": {
+          "interests": ["chew_toys_&_enrichment", "cozy_beds_&_blankets", "grooming_&_self_care", "outdoor_adventures", "treats_&_snacks", "training_&_tricks", "fashion_&_accessories", "wellness_&_diet"],
+          "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+        },
+        "fish": {
+          "interests": ["chew_toys_&_enrichment", "cozy_beds_&_blankets", "grooming_&_self_care", "outdoor_adventures", "treats_&_snacks", "training_&_tricks", "fashion_&_accessories", "wellness_&_diet"],
+          "budget": ["under_$10", "$10-$20", "$20-$50", "over_$50"]
+        }
+      }
+    }
+  }
+}

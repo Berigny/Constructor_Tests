@@ -2,3 +2,6 @@ pandas
 requests
 openpyxl
 langchain-google-vertexai
+streamlit
+scikit-learn
+openai

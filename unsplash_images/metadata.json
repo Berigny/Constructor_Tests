@@ -1,0 +1,38 @@
+[
+    {
+        "image_number": 1,
+        "query": "dog",
+        "collection": "Nature",
+        "error": "API request failed: 403"
+    },
+    {
+        "image_number": 2,
+        "query": "cat",
+        "collection": "Nature",
+        "error": "API request failed: 403"
+    },
+    {
+        "image_number": 3,
+        "query": "fish aquarium",
+        "collection": "Nature",
+        "error": "API request failed: 403"
+    },
+    {
+        "image_number": 4,
+        "query": "plush toy",
+        "collection": "Textures",
+        "error": "API request failed: 403"
+    },
+    {
+        "image_number": 5,
+        "query": "potted herb gardening",
+        "collection": "Nature",
+        "error": "API request failed: 403"
+    },
+    {
+        "image_number": 6,
+        "query": "sneakers sport",
+        "collection": "Street Photography",
+        "error": "API request failed: 403"
+    }
+]

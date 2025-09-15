@@ -4,6 +4,32 @@ import argparse
 import re
 import requests
 
+# Minimal .env loader so OPENROUTER_* vars in .env/.env.local are picked up
+def _load_env_from_file(path: str) -> None:
+    try:
+        if not os.path.exists(path):
+            return
+        with open(path, "r") as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                key = k.strip()
+                val = v.strip().strip('"').strip("'")
+                # Do not override if already set in real env
+                if key and key not in os.environ:
+                    os.environ[key] = val
+    except Exception:
+        # Best-effort only; ignore parse errors
+        pass
+
+# Load in common order: .env.local, then .env (without overriding existing env)
+_load_env_from_file(".env.local")
+_load_env_from_file(".env")
+
 # Optional import: Vertex AI via LangChain wrapper
 try:
     from langchain_google_vertexai import ChatVertexAI  # type: ignore
