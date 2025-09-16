@@ -129,9 +129,97 @@ def any_in_budget(items: List[Dict[str, Any]], lo: Optional[float], hi: Optional
     return False
 
 
+# Common runner to fetch products; stores outputs in session_state
+def run_product_search(q_base: str, include_cats: List[str], lo: Optional[float], hi: Optional[float], label: str) -> None:
+    pf = price_filter_value(lo, hi)
+    urls_used: List[str] = []
+    errors: List[str] = []
+    chosen: List[Dict[str, Any]] = []
+    try:
+        if match_type == "Constructor":
+            items_raw, urls1 = fetch_aggregate_items(base_url, q_base, api_key, pf, include_cats, per_page=max(per_page, gifts_opt), pages=1)
+            urls_used.extend(urls1)
+            items = normalise_items(items_raw, source_band="original")
+            if not any_in_budget(items, lo, hi) and (lo is not None or hi is not None):
+                expanded_items: List[Dict[str, Any]] = []
+                msgs = []
+                for (nlo, nhi) in neighbor_price_bands(lo, hi):
+                    npf = price_filter_value(nlo, nhi)
+                    if npf == pf:
+                        continue
+                    raw2, urls2 = fetch_aggregate_items(base_url, q_base, api_key, npf, include_cats, per_page=max(per_page, gifts_opt), pages=1)
+                    urls_used.extend(urls2)
+                    expanded_items.extend(normalise_items(raw2, source_band="expanded"))
+                    msgs.append(price_text(nlo, nhi) or "")
+                if expanded_items:
+                    items = expanded_items
+                    try:
+                        st.toast(f"Expanded price to nearby bands: {', '.join([m for m in msgs if m])}")
+                    except Exception:
+                        pass
+            chosen = items[:gifts_opt]
+        else:
+            # Powered-up alternating convergent/divergent
+            all_items: List[Dict[str, Any]] = []
+            q_base_local = q_base
+            last_best = None
+            for iter_idx in range(1, queries_opt + 1):
+                if iter_idx == 1:
+                    q_iter = q_base_local
+                elif iter_idx % 2 == 0:
+                    q_iter = divergent_variant(q_base_local, q_base_local, include_cats, price_text(lo, hi))
+                else:
+                    q_iter = refine_query(q_base_local, last_best) if last_best else q_base_local
+                raw, urls2 = fetch_aggregate_items(base_url, q_iter, api_key, pf, include_cats, per_page=per_page, pages=pages_per_iter)
+                urls_used.extend(urls2)
+                # dedupe and normalise
+                seen_local = set()
+                uniq_raw = []
+                for it in raw:
+                    pid = it.get("id") or (it.get("data") or {}).get("id") or it.get("url")
+                    pid = str(pid)
+                    if pid and pid not in seen_local:
+                        seen_local.add(pid)
+                        uniq_raw.append(it)
+                items = normalise_items(uniq_raw, source_band="original")
+                if not any_in_budget(items, lo, hi) and (lo is not None or hi is not None):
+                    for (nlo, nhi) in neighbor_price_bands(lo, hi):
+                        npf = price_filter_value(nlo, nhi)
+                        raw2, urls3 = fetch_aggregate_items(base_url, q_iter, api_key, npf, include_cats, per_page=per_page, pages=pages_per_iter)
+                        urls_used.extend(urls3)
+                        items.extend(normalise_items(raw2, source_band="expanded"))
+                    try:
+                        txts = [price_text(*b) for b in neighbor_price_bands(lo, hi)]
+                        st.toast(f"Expanded price to nearby bands: {', '.join([t for t in txts if t])}")
+                    except Exception:
+                        pass
+                all_items.extend(items)
+                if items:
+                    best = sorted(items, key=lambda it: score_item(it, q_base_local, lo, hi), reverse=True)[0]
+                    last_best = best
+            ranked = sorted(all_items, key=lambda it: score_item(it, q_base_local, lo, hi), reverse=True)
+            seen_ids_global = set()
+            for it in ranked:
+                pid = it.get("id") or it.get("url")
+                if pid and pid not in seen_ids_global and it.get("url"):
+                    chosen.append(it)
+                    seen_ids_global.add(pid)
+                if len(chosen) >= gifts_opt:
+                    break
+    except Exception as e:
+        errors.append(str(e))
+
+    # Store for common rendering
+    st.session_state["last_results"] = chosen
+    st.session_state["last_errors"] = errors
+    st.session_state["last_urls"] = urls_used
+    st.session_state["last_label"] = label
+    st.session_state["last_budget"] = (lo, hi)
+
+
 # ----------------------- Images Tab (Greedy Tree) -----------------------
 @st.cache_data
-def load_meta_df(meta_path: str) -> Optional["pd.DataFrame"]:
+def load_meta_df(meta_path: str) -> Optional[Any]:
     try:
         import pandas as pd  # local import to avoid global dependency if unused
         with open(meta_path, "r", encoding="utf-8") as f:
@@ -147,6 +235,29 @@ def load_meta_df(meta_path: str) -> Optional["pd.DataFrame"]:
         for c in ["alt_description", "description"]:
             if c not in df.columns:
                 df[c] = ""
+        # normalise photo_id from possible fields
+        if "photo_id" not in df.columns:
+            if "id" in df.columns:
+                df["photo_id"] = df["id"].astype(str)
+            elif "filename" in df.columns:
+                df["photo_id"] = df["filename"].astype(str).str.replace(".jpg", "", regex=False)
+            else:
+                df["photo_id"] = ""
+        # If no usable photo_id exists in metadata, fall back to local JPG files in the same folder
+        if (df.get("photo_id") is not None) and df["photo_id"].astype(str).str.strip().eq("").all():
+            base_dir = os.path.dirname(meta_path)
+            try:
+                files = [f for f in os.listdir(base_dir) if f.lower().endswith('.jpg')]
+            except Exception:
+                files = []
+            if files:
+                pids = [os.path.splitext(f)[0] for f in files]
+                df = pd.DataFrame({
+                    "photo_id": pids,
+                    "filename": files,
+                    "alt_description": pids,
+                    "tags": [[]] * len(files),
+                })
         df["text"] = (
             df["alt_description"].fillna("").astype(str)
             + " "
@@ -329,6 +440,15 @@ def normalise_item(d: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def normalise_items(raw_items: List[Dict[str, Any]], source_band: str) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for it in raw_items:
+        n = normalise_item(it)
+        n["_band"] = source_band  # 'original' or 'expanded'
+        out.append(n)
+    return out
+
+
 def build_query_text(relationship: str, gender: Optional[str], age_text: Optional[str], interest: str, price_phrase: Optional[str] = None, generation_label: Optional[str] = None) -> str:
     rel = prettify_token(relationship)
     gen = prettify_token(gender) if gender else None
@@ -341,7 +461,7 @@ def build_query_text(relationship: str, gender: Optional[str], age_text: Optiona
     who = " ".join(parts)
     # Persona and tone: Australian, value-conscious Kmart shopper with trade-down mindset.
     tail = f" within {price_phrase}" if price_phrase else ""
-    # Demographic-tailored persona
+    # Demographic-tailored persona: use ONLY generation-specific tone (no global persona)
     gen_tone = ""
     if generation_label:
         gl = generation_label.lower()
@@ -357,17 +477,11 @@ def build_query_text(relationship: str, gender: Optional[str], age_text: Optiona
             gen_tone = "For Boomers, foreground comfort, ease-of-use, and reliable value. "
         elif "silent" in gl:
             gen_tone = "For the Silent Generation, prefer classic, comfortable, easy-to-use items with clear value. "
-    persona = (
-        "Australian Kmart shopper profile: value-conscious and trade-down oriented; "
-        "prioritise affordable, great value, budget-friendly items that are practical, reliable, and durable. "
-        "Prefer good alternatives to premium brands, focusing on smart savings and everyday usefulness. "
-        + gen_tone
-    )
+    persona = gen_tone
     # Final natural language query (avoid the word 'gift' to reduce gift-card bias)
     return (
         f"{persona}"
-        f"Thoughtful ideas for a {who} who enjoys {intr}{tail}. "
-        f"Use Australian English and context; match relatable use-cases and everyday needs."
+        f"Thoughtful ideas for a {who} who enjoys {intr}{tail}."
     )
 
 
@@ -463,7 +577,7 @@ def fetch_aggregate_items(base_url: str, q_text: str, api_key: str, pf: Optional
 
 @st.cache_data
 def load_category_whitelist(categories_path: str = "categories.txt", example_path: str = "example.json") -> List[str]:
-    # Prefer categories.txt if present (authoritative list)
+    # Union categories from categories.txt and example.json facets
     cats: List[str] = []
     try:
         if os.path.exists(categories_path):
@@ -478,31 +592,27 @@ def load_category_whitelist(categories_path: str = "categories.txt", example_pat
                         section = "categories"
                         continue
                     if "product types:" in low:
-                        # ignore product types for Category filtering
                         section = "product_types"
                         continue
                     if section == "categories":
                         cats.append(line.replace("  ", " ").strip())
-            if cats:
-                return list(dict.fromkeys(cats))
     except Exception:
         pass
-    # Fallback to reading categories from example.json facets
     try:
-        with open(example_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        facets = ((data.get("response") or {}).get("facets") or [])
-        for facet in facets:
-            if str(facet.get("name")).lower() == "category":
-                for opt in facet.get("options", []):
-                    name = opt.get("display_name") or opt.get("value")
-                    if name:
-                        cats.append(str(name))
-        if cats:
-            return list(dict.fromkeys(cats))
+        if os.path.exists(example_path):
+            with open(example_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            facets = ((data.get("response") or {}).get("facets") or [])
+            for facet in facets:
+                if str(facet.get("name")).lower() == "category":
+                    for opt in facet.get("options", []):
+                        name = opt.get("display_name") or opt.get("value")
+                        if name:
+                            cats.append(str(name))
     except Exception:
         pass
-    return []
+    # unique preserving order
+    return list(dict.fromkeys(cats))
 
 
 def _norm_cat(s: str) -> str:
@@ -523,46 +633,77 @@ def build_category_canonical_map() -> Dict[str, str]:
 
 
 def interest_to_categories(interest: str, restrict_to_whitelist: bool = True) -> List[str]:
-    t = interest.lower()
-    cat_map = [
-        ("cooking", ["Food & Drink", "Kitchen Appliances", "Utensils and Gadgets", "Food Preparation", "Cookware", "Bakeware", "Serveware"]),
-        ("baking", ["Food & Drink", "Bakeware", "Kitchen Appliances", "Utensils and Gadgets"]),
-        ("gardening", ["Home & Pets", "Home and Living", "Garden"]),
-        ("relaxation", ["Health & Wellbeing", "Body & Spirit", "Home & Living", "Decor Accessories"]),
-        ("reading", ["Books", "Notebooks and Journals", "Stationery"]),
-        ("tech", ["Electronics", "Gadgets", "Tech"]),
-        ("gaming", ["Gaming", "Electronics", "Tech"]),
-        ("diy", ["Craft Supplies", "Artistry", "Tools"]),
-        ("arts", ["Artistry", "Craft Supplies", "Drawing and Colouring", "Jewellery Making", "Yarn and Haberdashery"]),
-        ("creativity", ["Artistry", "Craft Supplies"]),
-        ("board_games", ["Board Games and Puzzles", "Toys"]),
-        ("music", ["Music", "Musical Instruments", "Electronics"]),
-        ("fashion", ["Fashion", "Accessories", "Jewellery", "Hair Accessories"]),
-        ("home", ["Home & Living", "Home Decor", "Home and Living"]),
-        ("travel", ["Travel", "Sport and Outdoor"]),
-        ("sustainable", ["Sustainable"]),
-        ("pet", ["Home & Pets"]) ,
-    ]
-    out: List[str] = []
-    for key, cats in cat_map:
-        if key in t:
-            out.extend(cats)
-    # generic fallback from tokens in interest
-    if not out:
-        intr = prettify_token(interest)
-        if "craft" in intr.lower():
-            out.extend(["Craft Supplies", "Artistry"]) 
-    # If example.json provides a whitelist of valid categories, intersect
+    raw = (interest or "").strip()
+    t = raw.lower().replace("_", " ")
+    # Explicit mapping for QuizIA interests → catalog categories
+    explicit: Dict[str, List[str]] = {
+        # Kids / Child
+        "soft toys & plush": ["Toys", "Kids and Baby"],
+        "sensory play": ["Toys", "Kids and Baby"],
+        "teething & comfort": ["Kids and Baby"],
+        "first books": ["Back To School", "Kids and Baby"],
+        "imaginative play": ["Toys"],
+        "stacking & sorting": ["Toys"],
+        "building blocks": ["Toys"],
+        "storytime & picture books": ["Back To School"],
+        "stem & science kits": ["Toys", "Back To School"],
+        "arts & crafts": ["Craft Supplies", "Artistry", "Kids Art", "Craft and Stationery"],
+        "board games & puzzles": ["Toys"],
+        "outdoor play": ["Toys"],
+        # Adults
+        "cooking & baking": ["Kitchen Appliances", "Utensils & Gadgets", "Food Preparation", "Cookware", "Bakeware", "Serveware"],
+        "relaxation & down time": ["Home  Living"],
+        "gardening": ["Home  Living"],
+        "reading": ["Back To School"],
+        "tech & gaming": ["Electronics", "Gadgets", "Tech"],
+        "diy": ["Craft Supplies", "Artistry"],
+        "arts & creativity": ["Artistry", "Craft Supplies"],
+        "music": ["Music"],
+        "fashion & beauty": ["Gifting"],
+    }
+    # Normalise keys for lookup
+    def norm_interest(s: str) -> str:
+        x = s.lower()
+        x = x.replace(" and ", " & ")
+        x = x.replace("&", "&")
+        x = re.sub(r"\s+", " ", x).strip()
+        return x
+    candidates: List[str] = []
+    ni = norm_interest(t)
+    if ni in explicit:
+        candidates.extend(explicit[ni])
+    # Token-based heuristics as a fallback
+    if not candidates:
+        token_map = [
+            ("cooking", ["Kitchen Appliances", "Utensils & Gadgets", "Food Preparation", "Cookware", "Bakeware", "Serveware"]),
+            ("baking", ["Bakeware", "Kitchen Appliances", "Utensils & Gadgets"]),
+            ("gardening", ["Home  Living"]),
+            ("relaxation", ["Home  Living"]),
+            ("reading", ["Back To School"]),
+            ("tech", ["Electronics", "Gadgets", "Tech"]),
+            ("gaming", ["Electronics", "Gadgets", "Tech"]),
+            ("diy", ["Craft Supplies", "Artistry"]),
+            ("craft", ["Craft Supplies", "Artistry", "Craft and Stationery", "Kids Art"]),
+            ("board", ["Toys"]),
+            ("puzzle", ["Toys"]),
+            ("toy", ["Toys"]),
+            ("kids", ["Kids and Baby", "Toys"]),
+            ("home", ["Home  Living"]),
+            ("music", ["Music"]),
+        ]
+        for key, cats in token_map:
+            if key in ni:
+                candidates.extend(cats)
+    # Whitelist canonicalisation
     if restrict_to_whitelist:
         canonical = build_category_canonical_map()
         resolved: List[str] = []
-        for c in out:
+        for c in candidates:
             key = _norm_cat(c)
             if key in canonical:
                 resolved.append(canonical[key])
-        # If nothing matched the whitelist, send no category filters rather than invalid ones
-        out = resolved
-    return list(dict.fromkeys(out))
+        candidates = resolved
+    return list(dict.fromkeys([c for c in candidates if c]))
 
 
 def make_url(base: str, query: str, key: str, price_filter: Optional[str], include_categories: List[str], per_page: int = 10, page: int = 1) -> str:
@@ -597,6 +738,42 @@ def make_url(base: str, query: str, key: str, price_filter: Optional[str], inclu
     # Encode query parameters using %20 for spaces (not '+') to match Constructor expectations
     qs = urlencode(kv, doseq=True, quote_via=quote)
     return f"{base}/v1/search/natural_language/{quote(clean_q)}?{qs}"
+
+
+def normalize_filter_value(val: str) -> str:
+    s = (val or "").strip()
+    s = s.replace("&", "and")
+    return s
+
+
+def make_url_with_pairs(base: str, query: str, key: str, per_page: int, page: int, pairs: List[Tuple[str, str]]) -> str:
+    from urllib.parse import urlencode, quote
+    params = {
+        "key": key,
+        "i": st.session_state.get("constructor_i") or str(uuid.uuid4()),
+        "s": 1,
+        "num_results_per_page": per_page,
+        "page": page,
+        "sort_by": "relevance",
+    }
+    st.session_state["constructor_i"] = params["i"]
+    kv = list(params.items()) + [(k, normalize_filter_value(v)) for (k, v) in pairs]
+    clean_q = sanitize_query(query)
+    qs = urlencode(kv, doseq=True, quote_via=quote)
+    return f"{base}/v1/search/natural_language/{quote(clean_q)}?{qs}"
+
+
+def fetch_aggregate_items_generic(base_url: str, q_text: str, api_key: str, per_page: int, pages: int, filter_pairs: List[Tuple[str, str]]) -> Tuple[List[Dict[str, Any]], List[str]]:
+    urls_used: List[str] = []
+    out_raw: List[Dict[str, Any]] = []
+    for p in range(1, pages + 1):
+        url = make_url_with_pairs(base_url, q_text, api_key, per_page=per_page, page=p, pairs=filter_pairs)
+        urls_used.append(url)
+        r = requests.get(url, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        out_raw.extend(extract_items(data))
+    return out_raw, urls_used
 
 
 def refine_query(prev_query: str, picked: Dict[str, Any]) -> str:
@@ -676,7 +853,7 @@ with st.sidebar:
         os.environ["CONSTRUCTOR_PUBLIC_KEY"] = api_key
     base_url = st.text_input("Constructor base", value=os.environ.get("CONSTRUCTOR_BASE_URL", "https://ac.cnstrc.com"))
     os.environ["CONSTRUCTOR_BASE_URL"] = base_url
-    st.markdown("Uses the front-end natural language search URL that returns JSON.")
+    st.markdown("Uses the front-end natural language search URL that returns JSON [key_GZTqlLr41FS2p7AY].")
     per_page = st.slider("Results per iteration", min_value=10, max_value=50, value=24, step=2)
     pages_per_iter = st.slider("Pages per iteration", min_value=1, max_value=3, value=1)
     # Defaults ON (no toggles): include budget in query, strict budget, logging, restrict to whitelist
@@ -694,31 +871,15 @@ else:
     queries_opt = 1
 gifts_opt = st.selectbox("Number of gifts", options=[1,2,3,4,5], index=2)
 
-st.subheader("Who is the gift for?")
+tabs = st.tabs(["Quiz", "Images", "URLs"])
 
-who_options = list((quiz.get("who") or {}).keys())
-who = st.selectbox("Recipient type", options=who_options, index=who_options.index("parent") if "parent" in who_options else 0)
+with tabs[0]:
+    st.subheader("Who is the gift for?")
+    recipient_kind = st.radio("Recipient kind", options=["Human","Pet"], horizontal=True, index=0)
 
-node = quiz["who"][who]
+    who_keys_all = list((quiz.get("who") or {}).keys())
 
-gender = None
-age = None
-interest = None
-budget_label = None
-
-if who == "pet":
-    pet_types = list((node.get("pet_type") or {}).keys())
-    pet = st.selectbox("Pet type", options=pet_types)
-    pet_node = node["pet_type"][pet]
-    interests = pet_node.get("interests", [])
-    interest = st.selectbox("Interest", options=interests)
-    budgets = pet_node.get("budget", [])
-    budget_label = st.selectbox("Budget", options=budgets)
-    relationship = f"{pet}"
-else:
-    genders = list((node.get("gender") or {}).keys())
-    gender = st.selectbox("Gender", options=genders)
-    # Generation selection + range slider for precision
+    # Generation selection first for Human
     GENERATIONS = [
         ("Gen Alpha (1–14)", 1, 14),
         ("Gen Z (13–28)", 13, 28),
@@ -728,242 +889,327 @@ else:
         ("Silent Generation (80–97)", 80, 97),
     ]
     gen_labels = [g[0] for g in GENERATIONS]
-    gen_idx_default = 1 if "Gen Z (13–28)" in gen_labels else 0
-    gen_label = st.selectbox("Generation", options=gen_labels, index=gen_idx_default)
-    gmin, gmax = next((a, b) for (lbl, a, b) in GENERATIONS if lbl == gen_label)
-    age_range = st.slider("Age range", min_value=1, max_value=97, value=(gmin, gmax))
+    gen_idx_default = 0
+    gen_label = None
 
-    # Map selected age range to the closest available QuizIA age bucket
-    available_buckets = list(((node["gender"][gender]).get("age") or {}).keys())
-    def _bucket_range(bk: str) -> Tuple[int, int]:
-        if bk == "0_2":
-            return (0,2)
-        if bk == "3_5":
-            return (3,5)
-        if bk == "6_8":
-            return (6,8)
-        if bk == "9_12":
-            return (9,12)
-        if bk == "13_17":
-            return (13,17)
-        if bk == "18_plus":
-            return (18, 120)
-        return (0, 120)
-    rep_age = int((age_range[0] + age_range[1]) // 2)
-    # choose bucket that contains rep_age or is closest by mid-point
-    best_bk = None
-    best_dist = 10**9
-    for bk in available_buckets:
-        lo, hi = _bucket_range(bk)
-        mid = (lo + hi) / 2
-        dist = 0 if (lo <= rep_age <= hi) else abs(rep_age - mid)
-        if dist < best_dist:
-            best_dist = dist
-            best_bk = bk
-    # Fallback
-    age_bucket = best_bk or (available_buckets[0] if available_buckets else "18_plus")
-    age = age_bucket
-    age_node = node["gender"][gender]["age"][age_bucket]
-    interests = age_node.get("interests", [])
-    interest = st.selectbox("Interest", options=interests)
-    budgets = age_node.get("budget", [])
-    budget_label = st.selectbox("Budget", options=budgets)
-    relationship = who
+    def allowed_who_for_gen(gl: str) -> List[str]:
+        gl = gl.lower()
+        base = {
+            "alpha": ["child"],
+            "gen z": ["partner","friend","coworker"],
+            "millennials": ["parent","partner","friend","coworker"],
+            "gen x": ["parent","partner","friend","coworker"],
+            "boomers": ["grandparent","partner","friend","coworker"],
+            "silent": ["grandparent","partner","friend"],
+        }
+        for k,v in base.items():
+            if k in gl:
+                return v
+        return ["partner","friend","coworker"]
 
+    gender = None
+    age = None
+    interest = None
+    budget_label = None
+    relationship = None
+    age_range = (None, None)
 
-st.divider()
-
-col1, col2 = st.columns([1, 2])
-with col1:
-    go = st.button("Find best 3 products", type="primary")
-with col2:
-    st.write("")
-
-if go:
-    # Build query and price filter
-    lo, hi = parse_budget_range(budget_label or "")
-    pf = price_filter_value(lo, hi)
-    age_text_display = None
-    if who != "pet":
-        age_text_display = f"ages {age_range[0]}–{age_range[1]}"
-    p_phrase = price_text(*parse_budget_range(budget_label or "")) if include_budget_in_query else None
-    current_generation = gen_label if who != "pet" else None
-    q = build_query_text(relationship, None if who == "pet" else gender, age_text_display, interest or "", p_phrase, current_generation)
-
-    chosen: List[Dict[str, Any]] = []
-    seen_ids: set = set()
-    errors: List[str] = []
-    with st.spinner("Fetching and refining selections..."):
-        include_cats = interest_to_categories(interest or "", restrict_to_whitelist=restrict_cats)
-        if match_type == "Constructor":
-            try:
-                # Single query with fallbacks; take N gifts in the order returned
-                items_raw, _urls_used = fetch_aggregate_items(
-                    base_url, q, api_key, pf, include_cats, per_page=max(per_page, gifts_opt), pages=1
-                )
-                items = [normalise_item(it) for it in items_raw]
-                # If no in-budget items and we have a target band, expand to nearest two bands
-                if not any_in_budget(items, lo, hi) and (lo is not None or hi is not None):
-                    expanded_items: List[Dict[str, Any]] = []
-                    msgs = []
-                    for (nlo, nhi) in neighbor_price_bands(lo, hi):
-                        npf = price_filter_value(nlo, nhi)
-                        if npf == pf:
-                            continue
-                        raw2, _ = fetch_aggregate_items(
-                            base_url, q, api_key, npf, include_cats, per_page=max(per_page, gifts_opt), pages=1
-                        )
-                        expanded_items.extend([normalise_item(it) for it in raw2])
-                        msgs.append(price_text(nlo, nhi) or "")
-                    if expanded_items:
-                        items = expanded_items
-                        try:
-                            st.toast(f"Expanded price to nearby bands: {', '.join([m for m in msgs if m])}")
-                        except Exception:
-                            pass
-                chosen = items[:gifts_opt]
-            except Exception as e:
-                errors.append(str(e))
+    if recipient_kind == "Pet":
+        # Pet flow
+        who = "pet"
+        node = quiz["who"][who]
+        pet_types = list((node.get("pet_type") or {}).keys())
+        pet = st.selectbox("Pet type", options=pet_types)
+        pet_node = node["pet_type"][pet]
+        interests = pet_node.get("interests", [])
+        interest = st.selectbox("Interest", options=interests)
+        budgets = pet_node.get("budget", [])
+        budget_label = st.selectbox("Budget", options=budgets)
+        relationship = f"{pet}"
+    else:
+        # Human flow: generation first
+        gen_label = st.selectbox("Generation", options=gen_labels, index=gen_idx_default)
+        allowed = allowed_who_for_gen(gen_label)
+        # Intersect with available who keys in quiz
+        who_candidates = [w for w in allowed if w in who_keys_all]
+        if not who_candidates:
+            who_candidates = [w for w in who_keys_all if w != "pet"]
+        who = st.selectbox("Recipient type", options=who_candidates)
+        node = quiz["who"][who]
+        genders = list((node.get("gender") or {}).keys())
+        gender = st.selectbox("Gender", options=genders)
+        if who == "child":
+            # Child: show age slider and map to child buckets
+            gmin, gmax = next((a, b) for (lbl, a, b) in GENERATIONS if lbl == gen_label)
+            age_range = st.slider("Age range", min_value=1, max_value=97, value=(gmin, gmax))
+            available_buckets = list(((node["gender"][gender]).get("age") or {}).keys())
+            def _bucket_range(bk: str) -> Tuple[int, int]:
+                if bk == "0_2": return (0,2)
+                if bk == "3_5": return (3,5)
+                if bk == "6_8": return (6,8)
+                if bk == "9_12": return (9,12)
+                if bk == "13_17": return (13,17)
+                if bk == "18_plus": return (18, 120)
+                return (0, 120)
+            rep_age = int((age_range[0] + age_range[1]) // 2)
+            best_bk = None
+            best_dist = 10**9
+            for bk in available_buckets:
+                lo_b, hi_b = _bucket_range(bk)
+                mid = (lo_b + hi_b) / 2
+                dist = 0 if (lo_b <= rep_age <= hi_b) else abs(rep_age - mid)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_bk = bk
+            age_bucket = best_bk or (available_buckets[0] if available_buckets else "13_17")
+            age_node = node["gender"][gender]["age"][age_bucket]
         else:
-            # Powered-up: run queries_opt iterations, alternating convergent (focused) and divergent (creative) queries.
-            all_items: List[Dict[str, Any]] = []
-            q_base = q
-            q_iter = q_base
-            last_best: Optional[Dict[str, Any]] = None
-            for iter_idx in range(1, queries_opt + 1):
-                try:
-                    # Determine take: odd -> convergent, even -> divergent
-                    if iter_idx == 1:
-                        q_iter = q_base  # first is convergent base
-                    elif iter_idx % 2 == 0:
-                        q_iter = divergent_variant(q_base, interest or "", include_cats, price_text(lo, hi))
-                    else:
-                        # convergent: refine toward last best if available, else use base
-                        q_iter = refine_query(q_base, last_best) if last_best else q_base
+            # Adult recipients: force 18_plus
+            age_range = (18, 97)
+            age_bucket = "18_plus"
+            age_dict = (node.get("gender", {}).get(gender, {}).get("age", {}))
+            if isinstance(age_dict, dict) and age_bucket in age_dict:
+                age_node = age_dict[age_bucket]
+            else:
+                # fallback: take first available
+                if isinstance(age_dict, dict) and age_dict:
+                    first_key = next(iter(age_dict.keys()))
+                    age_node = age_dict.get(first_key, {})
+                else:
+                    age_node = {}
+        interests = age_node.get("interests", []) if isinstance(age_node, dict) else []
+        interest = st.selectbox("Interest", options=interests)
+        budgets = age_node.get("budget", []) if isinstance(age_node, dict) else []
+        budget_label = st.selectbox("Budget", options=budgets)
+        relationship = who
 
-                    # fetch across configured pages with fallbacks
-                    items_raw, _urls_used = fetch_aggregate_items(
-                        base_url, q_iter, api_key, pf, include_cats, per_page=per_page, pages=pages_per_iter
-                    )
-                    # dedupe per-iteration
+    st.divider()
+    if st.button("Find products", key="quiz_go", type="primary"):
+        lo, hi = parse_budget_range(budget_label or "")
+        age_text_display = None
+        if who != "pet" and age_range[0] is not None:
+            age_text_display = f"ages {age_range[0]}–{age_range[1]}"
+        p_phrase = price_text(*parse_budget_range(budget_label or "")) if include_budget_in_query else None
+        current_generation = gen_label if who != "pet" else None
+        q_base = build_query_text(relationship, None if who == "pet" else gender, age_text_display, interest or "", p_phrase, current_generation)
+        include_cats = interest_to_categories(interest or "", restrict_to_whitelist=restrict_cats)
+        run_product_search(q_base, include_cats, lo, hi, label="Quiz")
+
+with tabs[2]:
+    st.subheader("URLs")
+    st.caption("Build a Constructor URL from natural language and filters (no LLM). Spaces → %20, '&' → 'and' automatically.")
+    url_nl = st.text_area("Natural language", value=st.session_state.get("url_nl", ""))
+    st.session_state["url_nl"] = url_nl
+    @st.cache_data
+    def fetch_filter_types(base: str, key: str) -> List[str]:
+        try:
+            # minimal seed query to fetch facets; tolerate failure
+            seed_url = f"{base}/v1/search/natural_language/ideas"
+            params = {"key": key, "s": 1, "num_results_per_page": 1}
+            r = requests.get(seed_url, params=params, timeout=8)
+            r.raise_for_status()
+            data = r.json()
+            facets = ((data.get("response") or {}).get("facets") or [])
+            names = []
+            for f in facets:
+                nm = f.get("name") or f.get("display_name")
+                if nm:
+                    names.append(str(nm))
+            # Dedup, keep common ones first
+            base_order = [
+                "Category","Product Type","Subcategory","Price","Audience","Colour","Material","Features","Book Genre","Brand","Size","Suitable for ages","Capacity","Power Rating"
+            ]
+            out = []
+            for b in base_order:
+                if b in names and b not in out:
+                    out.append(b)
+            for n in names:
+                if n not in out:
+                    out.append(n)
+            return out or base_order
+        except Exception:
+            return [
+                "Category","Product Type","Subcategory","Price","Audience","Colour","Material","Features","Book Genre","Brand","Size","Suitable for ages","Capacity","Power Rating"
+            ]
+
+    FILTER_TYPES = fetch_filter_types(base_url, api_key)
+    if "url_filters" not in st.session_state:
+        st.session_state["url_filters"] = []
+    filters_list = st.session_state["url_filters"]
+    st.write("Filters")
+    rm = []
+    for idx, row in enumerate(filters_list):
+        c1, c2, c3 = st.columns([2,4,1])
+        with c1:
+            row["type"] = st.selectbox("Type", options=FILTER_TYPES, index=(FILTER_TYPES.index(row.get("type")) if row.get("type") in FILTER_TYPES else 0), key=f"url_ft_{idx}")
+        with c2:
+            row["value"] = st.text_input("Value", value=row.get("value",""), key=f"url_fv_{idx}")
+        with c3:
+            if st.button("Remove", key=f"url_fr_{idx}"):
+                rm.append(idx)
+    if rm:
+        st.session_state["url_filters"] = [r for i, r in enumerate(filters_list) if i not in rm]
+        st.rerun()
+    if st.button("Add filter", key="url_f_add"):
+        st.session_state["url_filters"].append({"type": FILTER_TYPES[0], "value": ""})
+        st.rerun()
+
+    st.divider()
+    if st.button("Find products", key="url_go", type="primary"):
+        pairs: List[Tuple[str,str]] = []
+        for row in st.session_state["url_filters"]:
+            t = (row.get("type") or "").strip()
+            v = (row.get("value") or "").strip()
+            if not t or not v:
+                continue
+            pairs.append((f"filters[{t}]", v))
+        urls_used: List[str] = []
+        errors: List[str] = []
+        chosen: List[Dict[str, Any]] = []
+        try:
+            if match_type == "Constructor":
+                raw, urls1 = fetch_aggregate_items_generic(base_url, url_nl, api_key, per_page=max(per_page, gifts_opt), pages=1, filter_pairs=pairs)
+                urls_used.extend(urls1)
+                items = [normalise_item(it) for it in raw]
+                chosen = items[:gifts_opt]
+            else:
+                all_items: List[Dict[str, Any]] = []
+                last_best = None
+                for iter_idx in range(1, queries_opt + 1):
+                    if iter_idx == 1:
+                        q_iter = url_nl
+                    elif iter_idx % 2 == 0:
+                        q_iter = divergent_variant(url_nl, url_nl, [], None)
+                    else:
+                        q_iter = refine_query(url_nl, last_best) if last_best else url_nl
+                    raw, urls2 = fetch_aggregate_items_generic(base_url, q_iter, api_key, per_page=per_page, pages=pages_per_iter, filter_pairs=pairs)
+                    urls_used.extend(urls2)
                     seen_local = set()
                     uniq_raw = []
-                    for it in items_raw:
+                    for it in raw:
                         pid = it.get("id") or (it.get("data") or {}).get("id") or it.get("url")
                         pid = str(pid)
                         if pid and pid not in seen_local:
                             seen_local.add(pid)
                             uniq_raw.append(it)
                     items = [normalise_item(it) for it in uniq_raw]
-                    # If no in-budget items, expand by two nearby bands
-                    if not any_in_budget(items, lo, hi) and (lo is not None or hi is not None):
-                        for (nlo, nhi) in neighbor_price_bands(lo, hi):
-                            npf = price_filter_value(nlo, nhi)
-                            raw2, _ = fetch_aggregate_items(
-                                base_url, q_iter, api_key, npf, include_cats, per_page=per_page, pages=pages_per_iter
-                            )
-                            items.extend([normalise_item(it) for it in raw2])
-                        try:
-                            txts = [price_text(*b) for b in neighbor_price_bands(lo, hi)]
-                            st.toast(f"Expanded price to nearby bands: {', '.join([t for t in txts if t])}")
-                        except Exception:
-                            pass
                     all_items.extend(items)
-                    # track best for next convergent refinement and expand categories
                     if items:
-                        def _score(it: Dict[str, Any]) -> float:
-                            base_s = score_item(it, interest or "", lo, hi)
-                            if strict_budget:
-                                price = it.get("price")
-                                in_b = True
-                                if price is not None:
-                                    if lo is not None and price < lo:
-                                        in_b = False
-                                    if hi is not None and price > hi:
-                                        in_b = False
-                                base_s += 2.0 if in_b else -1.0
-                            return base_s
-                        best = sorted(items, key=_score, reverse=True)[0]
+                        best = sorted(items, key=lambda it: score_item(it, url_nl, None, None), reverse=True)[0]
                         last_best = best
-                        cat_field = best.get("categories")
-                        if isinstance(cat_field, str) and cat_field:
-                            for c in re.split(r"[|,/]", cat_field):
-                                c = c.strip()
-                                if c and c not in include_cats:
-                                    include_cats.append(c)
-                        elif isinstance(cat_field, list):
-                            for c in cat_field:
-                                c = str(c).strip()
-                                if c and c not in include_cats:
-                                    include_cats.append(c)
-                except Exception as e:
-                    errors.append(str(e))
-            # After all queries, score globally and pick top unique
-            def _score_global(it: Dict[str, Any]) -> float:
-                base_s = score_item(it, interest or "", lo, hi)
-                if strict_budget:
-                    price = it.get("price")
-                    in_b = True
-                    if price is not None:
-                        if lo is not None and price < lo:
-                            in_b = False
-                        if hi is not None and price > hi:
-                            in_b = False
-                    base_s += 2.0 if in_b else -1.0
-                return base_s
-            ranked = sorted(all_items, key=_score_global, reverse=True)
-            seen_ids_global = set()
-            chosen = []
-            for it in ranked:
-                pid = it.get("id") or it.get("url")
-                if pid and pid not in seen_ids_global and it.get("url"):
-                    chosen.append(it)
-                    seen_ids_global.add(pid)
-                if len(chosen) >= gifts_opt:
-                    break
+                ranked = sorted(all_items, key=lambda it: score_item(it, url_nl, None, None), reverse=True)
+                seen = set()
+                for it in ranked:
+                    pid = it.get("id") or it.get("url")
+                    if pid and pid not in seen and it.get("url"):
+                        chosen.append(it)
+                        seen.add(pid)
+                    if len(chosen) >= gifts_opt:
+                        break
+        except Exception as e:
+            errors.append(str(e))
+        st.session_state["last_results"] = chosen
+        st.session_state["last_errors"] = errors
+        st.session_state["last_urls"] = urls_used
+        st.session_state["last_label"] = "URLs"
 
-    if errors:
-        st.warning("\n".join(errors))
-
-    if chosen:
-        st.subheader("Top picks")
-        for idx, it in enumerate(chosen, start=1):
-            title = it.get("title") or "View product"
-            def _full_product_url(u: str) -> str:
-                if not u:
-                    return ""
-                su = str(u).strip()
-                if su.startswith("http://") or su.startswith("https://"):
-                    return su
-                return urljoin("https://www.kmart.com.au/", su.lstrip("/"))
-            url = _full_product_url(it.get("url") or "")
-            price = it.get("price")
-            meta = f"${price:.2f}" if isinstance(price, (int, float)) and price is not None else ""
-            st.markdown(f"{idx}. [{title}]({url}) {meta}")
-        with st.expander("Search URLs used"):
-            # Reconstruct displayed search URLs for transparency
-            include_cats = interest_to_categories(interest or "", restrict_to_whitelist=restrict_cats)
-            lo, hi = parse_budget_range(budget_label or "")
-            pf = price_filter_value(lo, hi)
-            if match_type == "Constructor":
-                for p in range(1, pages_per_iter + 1):
-                    url = make_url(base_url, q, api_key, pf, include_cats, per_page=per_page, page=p)
-                    st.code(url)
-            else:
-                q_base = q
-                last_best = chosen[0] if chosen else None
-                for iter_idx in range(1, queries_opt + 1):
-                    if iter_idx == 1:
-                        q_iter = q_base
-                    elif iter_idx % 2 == 0:
-                        q_iter = divergent_variant(q_base, interest or "", include_cats, price_text(lo, hi))
-                    else:
-                        q_iter = refine_query(q_base, last_best) if last_best else q_base
-                    for p in range(1, pages_per_iter + 1):
-                        url = make_url(base_url, q_iter, api_key, pf, include_cats, per_page=per_page, page=p)
-                        st.code(url)
+with tabs[1]:
+    st.subheader("Pick by images (greedy tree)")
+    meta_path = st.text_input("Metadata path", value=os.path.join("unsplash_images", "metadata.json"))
+    df_meta = load_meta_df(meta_path)
+    if df_meta is None or (hasattr(df_meta, 'empty') and df_meta.empty):
+        st.info("Provide a valid metadata.json from Unsplash downloads.")
     else:
-        st.info("No products found. Try a different selection or budget.")
+        # Local/remote image helpers
+        base_dir = os.path.dirname(meta_path)
+        def _row_pid(r):
+            return r.get("photo_id") or r.get("id") or ""
+        def _row_local_path(r):
+            fn = r.get("filename")
+            if isinstance(fn, str) and fn:
+                p = os.path.join(base_dir, fn)
+                if os.path.exists(p):
+                    return p
+            pid = _row_pid(r)
+            if pid:
+                p = os.path.join(base_dir, f"{pid}.jpg")
+                if os.path.exists(p):
+                    return p
+            return None
+        def _render_image(r):
+            lp = _row_local_path(r)
+            if lp:
+                st.image(lp, use_container_width=True, caption=r.get("alt_description") or "")
+                return True
+            pid = _row_pid(r)
+            if pid:
+                st.image(f"https://source.unsplash.com/{pid}/600x400", use_container_width=True, caption=r.get("alt_description") or "")
+                return True
+            return False
+
+        # Cache/rebuild embeddings if path changed
+        key_path = f"img_meta_path"
+        key_tree = f"img_tree"
+        key_bits = f"img_path_bits"
+        key_emb = f"img_embeddings"
+        if st.session_state.get(key_path) != meta_path:
+            st.session_state[key_path] = meta_path
+            st.session_state[key_bits] = []
+            emb = embed_texts(df_meta["text"].tolist())
+            st.session_state[key_emb] = emb
+            st.session_state[key_tree] = build_greedy_tree(list(range(len(df_meta))), emb)
+        bits = st.session_state.get(key_bits, [])
+        tree = st.session_state.get(key_tree)
+        emb = st.session_state.get(key_emb)
+        try:
+            node_img = walk_tree(tree, bits)
+        except Exception:
+            st.session_state[key_bits] = []
+            node_img = walk_tree(tree, [])
+        if isinstance(node_img, dict):
+            i, j = node_img["pair_idx"]
+            left_row = df_meta.iloc[i]
+            right_row = df_meta.iloc[j]
+            col1, col2 = st.columns(2)
+            with col1:
+                if not _render_image(left_row):
+                    st.write("No image available")
+                if st.button("Left", key="img_left"):
+                    st.session_state[key_bits].append(0)
+                    st.rerun()
+            with col2:
+                if not _render_image(right_row):
+                    st.write("No image available")
+                if st.button("Right", key="img_right"):
+                    st.session_state[key_bits].append(1)
+                    st.rerun()
+        else:
+            leaf_idx = node_img
+            try:
+                leaf = df_meta.iloc[leaf_idx]
+            except Exception:
+                st.info("No leaf selected; reset and try again.")
+                if st.button("Reset images path"):
+                    st.session_state[key_bits] = []
+                    st.rerun()
+            else:
+                st.success("Image vibe selected")
+                if not _render_image(leaf):
+                    st.write("No image available")
+                tags = leaf.get("tags", [])
+                if not isinstance(tags, list):
+                    tags = []
+                tag_text = ", ".join([str(t) for t in tags][:6])
+                alt_text = str(leaf.get("alt_description") or "")
+                concept = (alt_text + "; " + tag_text).strip("; ")
+                st.write(f"Concept: {concept}")
+                if st.button("Find products", key="img_go"):
+                    include_cats = interest_to_categories(concept or "", restrict_to_whitelist=True)
+                    q_base_img = build_query_text("someone", None, None, concept or "", None, None)
+                    run_product_search(q_base_img, include_cats, None, None, label="Images")
+
+if False:
+    pass  # placeholder removed old inline search block
 
     # Optional logging
     if enable_logging and chosen:
@@ -1022,124 +1268,66 @@ if go:
         except Exception as e:
             st.warning(f"Logging failed: {e}")
 
-# ----------------------- Tabs: Images and URLs -----------------------
+# (old Images/URLs tabs removed; new tabs defined above)
+
+# -------- Shared Results Section --------
 st.divider()
-tabs = st.tabs(["Images", "URLs"])
-
-with tabs[0]:
-    st.subheader("Pick by images (greedy tree)")
-    meta_path = st.text_input("Metadata path", value=os.path.join("unsplash_images", "metadata.json"))
-    df_meta = load_meta_df(meta_path)
-    if df_meta is None or df_meta.empty:
-        st.info("Provide a valid metadata.json from Unsplash downloads.")
-    else:
-        # Cache/rebuild embeddings if path changed
-        key_path = f"img_meta_path"
-        key_tree = f"img_tree"
-        key_bits = f"img_path_bits"
-        key_emb = f"img_embeddings"
-        if st.session_state.get(key_path) != meta_path:
-            st.session_state[key_path] = meta_path
-            st.session_state[key_bits] = []
-            emb = embed_texts(df_meta["text"].tolist())
-            st.session_state[key_emb] = emb
-            st.session_state[key_tree] = build_greedy_tree(list(range(len(df_meta))), emb)
-        # current node
-        bits = st.session_state.get(key_bits, [])
-        tree = st.session_state.get(key_tree)
-        emb = st.session_state.get(key_emb)
-        node = walk_tree(tree, bits)
-        if isinstance(node, dict):
-            i, j = node["pair_idx"]
-            left_row = df_meta.iloc[i]
-            right_row = df_meta.iloc[j]
-            col1, col2 = st.columns(2)
-            with col1:
-                st.image(f"https://source.unsplash.com/{left_row['photo_id']}/600x400", use_column_width=True, caption=left_row.get("alt_description") or "")
-                if st.button("Left", key="img_left"):
-                    st.session_state[key_bits].append(0)
-                    st.rerun()
-            with col2:
-                st.image(f"https://source.unsplash.com/{right_row['photo_id']}/600x400", use_column_width=True, caption=right_row.get("alt_description") or "")
-                if st.button("Right", key="img_right"):
-                    st.session_state[key_bits].append(1)
-                    st.rerun()
-        else:
-            leaf_idx = node
-            leaf = df_meta.iloc[leaf_idx]
-            st.success("Image vibe selected")
-            st.image(f"https://source.unsplash.com/{leaf['photo_id']}/600x400", use_column_width=True, caption=leaf.get("alt_description") or "")
-            # Build concept from tags + alt
-            tags = leaf.get("tags", [])
-            if not isinstance(tags, list):
-                tags = []
-            tag_text = ", ".join([str(t) for t in tags][:6])
-            alt_text = str(leaf.get("alt_description") or "")
-            concept = (alt_text + "; " + tag_text).strip("; ")
-            st.write(f"Concept: {concept}")
-            if st.button("Find products from image vibe", key="img_go"):
-                # Use Powered-up flow to fetch products with this concept
-                include_cats = interest_to_categories(concept or "", restrict_to_whitelist=True)
-                q_base = build_query_text("someone", None, None, concept or "", None, None)
-                chosen_img: List[Dict[str, Any]] = []
-                errors_img: List[str] = []
-                all_items: List[Dict[str, Any]] = []
-                last_best = None
-                for iter_idx in range(1, (queries_opt if match_type == "Powered-up" else 1) + 1):
-                    try:
-                        if iter_idx == 1:
-                            q_iter = q_base
-                        elif iter_idx % 2 == 0:
-                            q_iter = divergent_variant(q_base, concept or "", include_cats, None)
-                        else:
-                            q_iter = refine_query(q_base, last_best) if last_best else q_base
-                        items_raw, _ = fetch_aggregate_items(base_url, q_iter, api_key, None, include_cats, per_page=per_page, pages=pages_per_iter)
-                        # dedupe
-                        seen_local = set()
-                        uniq_raw = []
-                        for it in items_raw:
-                            pid = it.get("id") or (it.get("data") or {}).get("id") or it.get("url")
-                            pid = str(pid)
-                            if pid and pid not in seen_local:
-                                seen_local.add(pid)
-                                uniq_raw.append(it)
-                        items = [normalise_item(it) for it in uniq_raw]
-                        all_items.extend(items)
-                        if items:
-                            def _score_img(it: Dict[str, Any]) -> float:
-                                return score_item(it, concept or "", None, None)
-                            best = sorted(items, key=_score_img, reverse=True)[0]
-                            last_best = best
-                    except Exception as e:
-                        errors_img.append(str(e))
-                # rank and pick
-                ranked = sorted(all_items, key=lambda it: score_item(it, concept or "", None, None), reverse=True)
-                seen = set()
-                for it in ranked:
-                    pid = it.get("id") or it.get("url")
-                    if pid and pid not in seen and it.get("url"):
-                        chosen_img.append(it)
-                        seen.add(pid)
-                    if len(chosen_img) >= gifts_opt:
-                        break
-                if errors_img:
-                    st.warning("\n".join(errors_img))
-                if chosen_img:
-                    st.subheader("Top picks (from image vibe)")
-                    for idx, it in enumerate(chosen_img, start=1):
-                        title = it.get("title") or "View product"
-                        def _full(u: str) -> str:
-                            if not u:
-                                return ""
-                            su = str(u).strip()
-                            if su.startswith("http://") or su.startswith("https://"):
-                                return su
-                            return urljoin("https://www.kmart.com.au/", su.lstrip("/"))
-                        url = _full(it.get("url") or "")
-                        st.markdown(f"{idx}. [{title}]({url})")
-                else:
-                    st.info("No products found from image vibe.")
-
-with tabs[1]:
-    st.subheader("URLs")
-    st.info("Coming soon")
+last_results = st.session_state.get("last_results", [])
+last_errors = st.session_state.get("last_errors", [])
+last_urls = st.session_state.get("last_urls", [])
+if last_errors:
+    st.warning("\n".join(last_errors))
+if last_results:
+    st.subheader("Top picks")
+    lohi = st.session_state.get("last_budget", (None, None))
+    lo_b, hi_b = lohi
+    for idx, it in enumerate(last_results, start=1):
+        title = it.get("title") or "View product"
+        def _full_product_url(u: str) -> str:
+            if not u:
+                return ""
+            su = str(u).strip()
+            if su.startswith("http://") or su.startswith("https://"):
+                return su
+            return urljoin("https://www.kmart.com.au/", su.lstrip("/"))
+        url = _full_product_url(it.get("url") or "")
+        price = it.get("price")
+        meta = f"${price:.2f}" if isinstance(price, (int, float)) and price is not None else ""
+        # badges
+        band = it.get("_band")
+        price = it.get("price")
+        in_budget = None
+        if price is not None and (lo_b is not None or hi_b is not None):
+            in_budget = (lo_b is None or price >= lo_b) and (hi_b is None or price <= hi_b)
+        badge = ""
+        if band == "expanded":
+            badge += " [expanded]"
+        if in_budget is True:
+            badge += " [in budget]"
+        elif in_budget is False:
+            badge += " [out of budget]"
+        st.markdown(f"{idx}. [{title}]({url}) {meta}{badge}")
+    with st.expander("Search URLs used"):
+        for i,u in enumerate(last_urls):
+            st.code(u)
+            if i == 0:
+                st.text_input("Copy first URL", value=u, key="copy_first_url")
+    # Logging
+    if enable_logging:
+        try:
+            os.makedirs("out_streamlit", exist_ok=True)
+            log_path = os.path.join("out_streamlit", "log.csv")
+            new_file = not os.path.exists(log_path)
+            with open(log_path, "a", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                if new_file:
+                    w.writerow(["timestamp","label","match_type","queries","gifts","product_id","product_title","product_price","product_url"])
+                for it in last_results:
+                    w.writerow([
+                        datetime.utcnow().isoformat(), st.session_state.get("last_label",""), match_type, queries_opt, gifts_opt,
+                        it.get("id") or it.get("url"), it.get("title"), it.get("price"), it.get("url")
+                    ])
+        except Exception as e:
+            st.warning(f"Logging failed: {e}")
+else:
+    st.info("No products yet. Use one of the tabs above and click 'Find products'.")
