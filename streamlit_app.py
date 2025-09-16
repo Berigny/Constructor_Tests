@@ -1033,8 +1033,8 @@ def score_item(item: Dict[str, Any], interest: str, lo: Optional[float], hi: Opt
 
 
 # ----------------------- UI -----------------------
-st.set_page_config(page_title="Constructor Gift Finder", page_icon="🎁", layout="centered")
-st.title("Gift Finder (Constructor)")
+st.set_page_config(page_title="Gift Finder", page_icon="🎁", layout="centered")
+st.title("Gift Finder")
 st.caption("Choose match mode and amounts, then select recipient details.")
 
 quiz = load_quiz()
@@ -1098,7 +1098,7 @@ else:
     queries_opt = 1
 gifts_opt = st.selectbox("Number of gifts", options=[1,2,3,4,5], index=2)
 
-tabs = st.tabs(["Quiz", "Images", "URLs"])
+tabs = st.tabs(["Images", "Quiz", "URLs"])
 
 with tabs[0]:
     st.subheader("Who is the gift for?")
@@ -1341,7 +1341,7 @@ with tabs[2]:
         st.session_state["last_label"] = "URLs"
 
 with tabs[1]:
-    st.subheader("Pick by images (greedy tree)")
+    st.subheader("Find Vibe with images")
     meta_path = st.text_input("Metadata path", value=os.path.join("unsplash_images", "metadata.json"))
     df_meta = load_meta_df(meta_path)
     if df_meta is None or (hasattr(df_meta, 'empty') and df_meta.empty):
