@@ -1062,10 +1062,8 @@ with st.sidebar:
             os.environ["CONSTRUCTOR_PUBLIC_KEY"] = api_key
     if not api_key:
         api_key = os.environ.get("CONSTRUCTOR_PUBLIC_KEY", "")
-    st.markdown("Constructor key is read from secrets when PIN is entered.")
-
     per_page = st.slider("Results per iteration", min_value=10, max_value=50, value=24, step=2)
-    pages_per_iter = st.slider("Pages per iteration", min_value=1, max_value=3, value=1)
+    pages_per_iter = 1
     # Defaults ON (no toggles): include budget in query, strict budget, logging, restrict to whitelist
     include_budget_in_query = True
     strict_budget = True
