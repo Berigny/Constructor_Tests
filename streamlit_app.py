@@ -411,6 +411,45 @@ def openrouter_summarise_phrase(description: str, tags: List[str]) -> Optional[s
         return None
 
 
+def _is_id_like(s: str, pid: Optional[str]) -> bool:
+    if not s:
+        return False
+    t = s.strip().lower()
+    if pid and t == str(pid).strip().lower():
+        return True
+    # Unsplash-style id: compact, no spaces, 8-16+ chars
+    if " " not in t and 8 <= len(t) <= 24 and re.fullmatch(r"[a-z0-9_-]+", t):
+        return True
+    return False
+
+
+def concept_from_meta(alt_text: str, tags: List[str], pid: Optional[str]) -> str:
+    # Prefer alt_text if it's meaningful and not id-like
+    if alt_text and not _is_id_like(alt_text, pid):
+        return alt_text.strip()
+    # Fall back to tag-driven phrases
+    tag_line = " ".join([str(t) for t in tags]) if tags else ""
+    t = tag_line.lower()
+    mapping = [
+        ("dog", "dog accessories"),
+        ("cat", "cat accessories"),
+        ("fish", "aquarium products"),
+        ("aquarium", "aquarium products"),
+        ("plush", "soft toys and plush"),
+        ("toy", "toys"),
+        ("sneaker", "sneakers and footwear"),
+        ("shoe", "footwear"),
+        ("garden", "gardening and plant products"),
+        ("plant", "gardening and plant products"),
+        ("tech", "tech and gadgets"),
+        ("gadget", "tech and gadgets"),
+    ]
+    for k, v in mapping:
+        if k in t:
+            return v
+    return "popular products"
+
+
 def prettify_token(s: str) -> str:
     s = s.replace("_", " ").replace("&", "and")
     return s
@@ -1281,44 +1320,7 @@ with tabs[1]:
                 return True
             return False
 
-        # Optional: Fetch metadata from Unsplash for local images
-        def fetch_unsplash_meta_for_rows(rows, limit=30):
-            try:
-                try:
-                    ak = st.secrets.get("UNSPLASH_ACCESS_KEY", "")
-                except Exception:
-                    ak = os.environ.get("UNSPLASH_ACCESS_KEY", "")
-                if not ak:
-                    st.warning("Set UNSPLASH_ACCESS_KEY in secrets to fetch metadata.")
-                    return
-                import requests as _rq
-                overrides = st.session_state.get("img_meta_override", {})
-                fetched = 0
-                for _, r in rows.iterrows():
-                    if fetched >= limit:
-                        break
-                    pid = r.get("photo_id") or r.get("id")
-                    if not pid:
-                        continue
-                    if pid in overrides:
-                        continue
-                    url = f"https://api.unsplash.com/photos/{pid}"
-                    resp = _rq.get(url, params={"client_id": ak}, timeout=10)
-                    if resp.status_code == 200:
-                        j = resp.json()
-                        alt = j.get("alt_description") or j.get("description") or ""
-                        tags = [t.get("title") for t in (j.get("tags") or []) if isinstance(t, dict) and t.get("title")]
-                        overrides[pid] = {"alt_description": alt, "tags": tags}
-                        fetched += 1
-                st.session_state["img_meta_override"] = overrides
-                if fetched:
-                    st.success(f"Fetched metadata for {fetched} images")
-                    st.rerun()
-            except Exception as e:
-                st.warning(f"Metadata fetch failed: {e}")
-
-        if st.button("Fetch metadata from Unsplash", key="img_fetch_meta"):
-            fetch_unsplash_meta_for_rows(df_meta)
+        # In-app metadata fetching removed; use the CLI script 'update_unsplash_metadata.py' instead.
 
         # Apply overrides (if any) before embedding
         overrides = st.session_state.get("img_meta_override", {})
@@ -1438,13 +1440,65 @@ with tabs[1]:
                     tags = []
                 tag_text = ", ".join([str(t) for t in tags][:6])
                 alt_text = str(leaf.get("alt_description") or "")
-                # If LLM is enabled, ask it to produce a short shopping phrase; otherwise keep a simple concept
+                # If LLM is enabled, ask it to produce a short shopping phrase; otherwise derive from meta (avoid ids)
                 concept_llm = openrouter_summarise_phrase(alt_text, tags)
-                concept = concept_llm or alt_text or tag_text or "popular products"
+                pid = leaf.get("photo_id") or leaf.get("id")
+                concept = concept_llm or concept_from_meta(alt_text, tags, pid)
                 st.write(f"Concept: {concept}")
+
+                # Vibe summary
+                with st.expander("Vibe summary"):
+                    cols = st.columns(2)
+                    with cols[0]:
+                        st.write(f"Photo ID: {pid or '-'}")
+                        st.write(f"Filename: {leaf.get('filename') or '-'}")
+                        st.write(f"Photographer: {leaf.get('photographer') or '-'}")
+                        size = None
+                        try:
+                            w = leaf.get('width'); h = leaf.get('height')
+                            if w and h:
+                                size = f"{w}×{h}"
+                        except Exception:
+                            size = None
+                        st.write(f"Size: {size or '-'}")
+                    with cols[1]:
+                        st.write(f"Alt: {(alt_text[:160] + '…') if len(alt_text) > 160 else (alt_text or '-')} ")
+                        st.write(f"Tags: {tag_text or '-'}")
+                        if concept_llm:
+                            st.write(f"LLM phrase: {concept_llm}")
+                        st.write(f"Final concept: {concept}")
+
+                # Categories + NL preview
+                include_cats_prev = interest_to_categories(concept or "", restrict_to_whitelist=True)
+                q_preview = build_query_text("", None, None, concept or "", None, None)
+                with st.expander("Query & URL preview"):
+                    st.write(f"Categories: {', '.join(include_cats_prev) or '-'}")
+                    st.write(f"NL query: {q_preview}")
+                    if api_key:
+                        try:
+                            url_prev = make_url(base_url, q_preview, api_key, None, include_cats_prev, per_page=per_page, page=1)
+                            st.code(url_prev)
+                        except Exception:
+                            pass
+
+                # Dataset summary
+                def _row_has_local(r):
+                    return _row_local_path(r) is not None
+                if hasattr(df_meta, 'iterrows'):
+                    total = len(df_meta)
+                    with_id = sum(1 for _, r in df_meta.iterrows() if r.get('photo_id') or r.get('id'))
+                    with_alt = sum(1 for _, r in df_meta.iterrows() if str(r.get('alt_description') or '').strip())
+                    with_tags_cnt = sum(1 for _, r in df_meta.iterrows() if isinstance(r.get('tags'), list) and len(r.get('tags')) > 0)
+                    with_local = sum(1 for _, r in df_meta.iterrows() if _row_has_local(r))
+                    with st.expander("Dataset summary"):
+                        st.write(f"Total images: {total}")
+                        st.write(f"With IDs: {with_id}")
+                        st.write(f"With alt descriptions: {with_alt}")
+                        st.write(f"With tags: {with_tags_cnt}")
+                        st.write(f"Local files found: {with_local}")
                 if st.button("Find products", key="img_go"):
                     include_cats = interest_to_categories(concept or "", restrict_to_whitelist=True)
-                    q_base_img = build_query_text("someone", None, None, concept or "", None, None)
+                    q_base_img = build_query_text("", None, None, concept or "", None, None)
                     run_product_search(q_base_img, include_cats, None, None, label="Images")
 
 if False:
