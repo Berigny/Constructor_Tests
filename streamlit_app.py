@@ -450,39 +450,93 @@ def normalise_items(raw_items: List[Dict[str, Any]], source_band: str) -> List[D
 
 
 def build_query_text(relationship: str, gender: Optional[str], age_text: Optional[str], interest: str, price_phrase: Optional[str] = None, generation_label: Optional[str] = None) -> str:
-    rel = prettify_token(relationship)
-    gen = prettify_token(gender) if gender else None
-    intr = prettify_token(interest)
-    parts = [rel]
-    if gen:
-        parts.append(gen)
-    if age_text:
-        parts.append(age_text)
-    who = " ".join(parts)
-    # Persona and tone: Australian, value-conscious Kmart shopper with trade-down mindset.
-    tail = f" within {price_phrase}" if price_phrase else ""
-    # Demographic-tailored persona: use ONLY generation-specific tone (no global persona)
-    gen_tone = ""
-    if generation_label:
-        gl = generation_label.lower()
-        if "alpha" in gl:
-            gen_tone = "For Gen Alpha recipients, lean into playful, hands-on imagination and discovery, guided by practical value for parents. "
-        elif "gen z" in gl or "z (" in gl:
-            gen_tone = "For Gen Z, highlight expressive, trend-aware choices that feel fun and personal without stretching the budget. "
-        elif "millennial" in gl or "gen y" in gl or "y (" in gl:
-            gen_tone = "For Millennials, emphasise functional quality, smart savings, and pieces that fit everyday routines. "
-        elif "gen x" in gl or "x (" in gl:
-            gen_tone = "For Gen X, focus on dependable practicality and durable basics that offer excellent value. "
-        elif "boomer" in gl:
-            gen_tone = "For Boomers, foreground comfort, ease-of-use, and reliable value. "
-        elif "silent" in gl:
-            gen_tone = "For the Silent Generation, prefer classic, comfortable, easy-to-use items with clear value. "
-    persona = gen_tone
-    # Final natural language query (avoid the word 'gift' to reduce gift-card bias)
-    return (
-        f"{persona}"
-        f"Thoughtful ideas for a {who} who enjoys {intr}{tail}."
-    )
+    # Build a very concise query like "tech and gadgets for men under $100"
+    def simple_interest_phrase(raw: str) -> str:
+        s = prettify_token(raw).lower().replace("&", "and")
+        mapping = {
+            "tech and gaming": "tech and gadgets",
+            "cooking and baking": "kitchen and cooking products",
+            "arts and creativity": "arts and crafts supplies",
+            "board games and puzzles": "board games and puzzles",
+            "relaxation and down time": "relaxation products",
+            "reading": "books and reading accessories",
+            "diy": "diy tools and craft supplies",
+            "gardening": "gardening and plant products",
+            "fashion and beauty": "fashion and beauty items",
+            "music": "music gear",
+            "outdoor play": "outdoor toys",
+            "arts and crafts": "arts and crafts supplies",
+            "stem and science kits": "stem and science kits",
+            "soft toys and plush": "soft toys and plush",
+        }
+        for k, v in mapping.items():
+            if k in s:
+                return v
+        if not s.endswith("products") and len(s.split()) > 1:
+            s = f"{s} products"
+        return s
+
+    def simple_audience_phrase(rel: str, gen: Optional[str], gendr: Optional[str]) -> str:
+        g = (gen or "").lower()
+        sex = (gendr or "").lower()
+        if "alpha" in g:
+            base = "kids"
+        elif "gen z" in g:
+            base = "young adults"
+        elif "millennial" in g or "gen y" in g:
+            base = "adults"
+        elif "gen x" in g:
+            base = "older adults"
+        elif "boomer" in g or "silent" in g:
+            base = "older adults"
+        else:
+            base = rel if rel else "adults"
+        if sex in ("male", "man", "men"):
+            if base == "kids":
+                return "boys"
+            if "older" in base:
+                return "older men"
+            if "young" in base:
+                return "young men"
+            return "men"
+        if sex in ("female", "woman", "women"):
+            if base == "kids":
+                return "girls"
+            if "older" in base:
+                return "older women"
+            if "young" in base:
+                return "young women"
+            return "women"
+        return base
+
+    def simple_budget_phrase(p: Optional[str]) -> str:
+        if not p:
+            return ""
+        s = p.lower().replace("$", "").replace("aud", "").strip()
+        if "under" in s:
+            m = re.search(r"(\d+)", s)
+            if m:
+                return f"under ${int(m.group(1))}"
+        if "+" in s or "more" in s or "over" in s:
+            m = re.search(r"(\d+)", s)
+            if m:
+                return f"more than ${int(m.group(1))}"
+        m = re.search(r"(\d+)\D+(\d+)", s)
+        if m:
+            a, b = sorted([int(m.group(1)), int(m.group(2))])
+            return f"between ${a} and ${b}"
+        m = re.search(r"(\d+)", s)
+        if m:
+            return f"around ${int(m.group(1))}"
+        return ""
+
+    interest_phrase = simple_interest_phrase(interest)
+    audience = simple_audience_phrase(relationship, generation_label, gender)
+    budget_phrase = simple_budget_phrase(price_phrase)
+    parts = [interest_phrase, "for", audience]
+    if budget_phrase:
+        parts.append(budget_phrase)
+    return " ".join(parts).strip()
 
 
 def sanitize_query(q: str) -> str:
