@@ -916,6 +916,30 @@ with st.sidebar:
     enable_logging = True
     restrict_cats = True
 
+    st.subheader("LLM")
+    llm_wanted = st.checkbox("Use LLM (OpenRouter)", value=st.session_state.get("llm_wanted", False))
+    st.session_state["llm_wanted"] = llm_wanted
+    if llm_wanted:
+        pin = st.text_input("Enter PIN", type="password")
+        if pin:
+            if pin.strip().upper() == "ALEX":
+                # Enable LLM using secret key if provided
+                st.session_state["llm_enabled"] = True
+                try:
+                    secret_key = st.secrets.get("Gifting", "")
+                except Exception:
+                    secret_key = ""
+                if secret_key and not os.environ.get("OPENROUTER_API_KEY"):
+                    os.environ["OPENROUTER_API_KEY"] = secret_key
+                os.environ.setdefault("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+                os.environ.setdefault("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+                st.caption("LLM enabled")
+            else:
+                st.session_state["llm_enabled"] = False
+                st.warning("Incorrect PIN")
+    else:
+        st.session_state["llm_enabled"] = False
+
 # Global controls above recipient selection
 st.subheader("Match Controls")
 match_type = st.radio("Match type", options=["Constructor", "Powered-up"], horizontal=True, index=1)
