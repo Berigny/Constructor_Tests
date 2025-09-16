@@ -1093,7 +1093,8 @@ with st.sidebar:
 st.subheader("Match Controls")
 match_type = st.radio("Match type", options=["Constructor", "Powered-up"], horizontal=True, index=1)
 if match_type == "Powered-up":
-    queries_opt = st.selectbox("Amount of queries", options=[1,2,3,4,5], index=2)
+    queries_opt = st.slider("Power", min_value=1, max_value=5, value=3)
+    st.caption("Power levels: 1=Minimal, 2=Low, 3=Medium, 4=High, 5=Substantial")
 else:
     queries_opt = 1
 gifts_opt = st.selectbox("Number of gifts", options=[1,2,3,4,5], index=2)
