@@ -411,6 +411,52 @@ def openrouter_summarise_phrase(description: str, tags: List[str]) -> Optional[s
         return None
 
 
+def openrouter_summarise_dataset(df_meta: Any, max_tags: int = 50, max_examples: int = 20) -> Optional[str]:
+    if not st.session_state.get("llm_enabled"):
+        return None
+    key = os.environ.get("OPENROUTER_API_KEY")
+    base = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    model = os.environ.get("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+    if not key:
+        return None
+    try:
+        import requests as _rq
+        # Aggregate top tags and sample alt descriptions
+        tags_all: List[str] = []
+        alts: List[str] = []
+        if hasattr(df_meta, 'iterrows'):
+            for _, r in df_meta.iterrows():
+                ts = r.get('tags')
+                if isinstance(ts, list):
+                    tags_all.extend([str(t) for t in ts if t])
+                a = r.get('alt_description')
+                if isinstance(a, str) and a.strip():
+                    alts.append(a.strip())
+        # Top-N tags by frequency
+        freq: Dict[str,int] = {}
+        for t in tags_all:
+            k = str(t).lower()
+            freq[k] = freq.get(k, 0) + 1
+        top_tags = [t for t,_ in sorted(freq.items(), key=lambda kv: kv[1], reverse=True)][:max_tags]
+        alt_samples = alts[:max_examples]
+
+        prompt = (
+            "You are crafting a very short natural-language shopping phrase (max 10 words) that describes a product domain and audience, "
+            "in the style of 'tech and gadgets for men' or 'gardening and plant products for women'. Do not include the word 'gift'.\n\n"
+            f"Top tags: {', '.join(top_tags)}\n"
+            f"Alt examples: {' | '.join(alt_samples)}\n\n"
+            "Return ONLY the phrase."
+        )
+        data = {"model": model, "messages": [{"role": "user", "content": prompt}]}
+        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+        resp = _rq.post(f"{base}/chat/completions", json=data, headers=headers, timeout=20)
+        resp.raise_for_status()
+        txt = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+        return txt or None
+    except Exception:
+        return None
+
+
 def _is_id_like(s: str, pid: Optional[str]) -> bool:
     if not s:
         return False
@@ -1440,8 +1486,8 @@ with tabs[1]:
                     tags = []
                 tag_text = ", ".join([str(t) for t in tags][:6])
                 alt_text = str(leaf.get("alt_description") or "")
-                # If LLM is enabled, ask it to produce a short shopping phrase; otherwise derive from meta (avoid ids)
-                concept_llm = openrouter_summarise_phrase(alt_text, tags)
+                # If LLM is enabled, derive a short shopping phrase from the entire dataset; else derive from this image meta
+                concept_llm = openrouter_summarise_dataset(df_meta) or openrouter_summarise_phrase(alt_text, tags)
                 pid = leaf.get("photo_id") or leaf.get("id")
                 concept = concept_llm or concept_from_meta(alt_text, tags, pid)
                 st.write(f"Concept: {concept}")
