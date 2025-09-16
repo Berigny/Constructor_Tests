@@ -1100,7 +1100,7 @@ gifts_opt = st.selectbox("Number of gifts", options=[1,2,3,4,5], index=2)
 
 tabs = st.tabs(["Images", "Quiz", "URLs"])
 
-with tabs[0]:
+with tabs[1]:
     st.subheader("Who is the gift for?")
     recipient_kind = st.radio("Recipient kind", options=["Human","Pet"], horizontal=True, index=0)
 
@@ -1340,7 +1340,7 @@ with tabs[2]:
         st.session_state["last_urls"] = urls_used
         st.session_state["last_label"] = "URLs"
 
-with tabs[1]:
+with tabs[0]:
     st.subheader("Find Vibe with images")
     meta_path = st.text_input("Metadata path", value=os.path.join("unsplash_images", "metadata.json"))
     df_meta = load_meta_df(meta_path)
