@@ -27,7 +27,7 @@ FLAGS = \
 
 URL_FLAGS = --url-base "$(URL_BASE)"
 
-.PHONY: help install venv install-venv run run-autocheck run-merge print-urls prompts requery-fixes clean app unsplash unsplash-quick unsplash-dedupe unsplash-meta
+.PHONY: help install venv install-venv run run-autocheck run-merge print-urls prompts requery-fixes clean app unsplash unsplash-quick unsplash-dedupe unsplash-meta unsplash-topics
 
 help:
 	@echo "Constructor Evaluator Makefile"
@@ -47,6 +47,7 @@ help:
 	@echo "  unsplash-quick  Quick Unsplash test (limit=3)"
 	@echo "  unsplash-dedupe Rename images to <photo_id>.jpg and remove duplicates"
 	@echo "  unsplash-meta   Update metadata.json alt/tags for local JPGs via Unsplash API"
+	@echo "  unsplash-topics Download a preset set of topics (dog, cat, fish aquarium, plush toy, potted herb gardening, sneakers sport)"
 	@echo "  clean           Remove output directory (OUT_DIR=$(OUT_DIR))"
 	@echo ""
 	@echo "Unsplash variables (override via make VAR=value):"
@@ -135,6 +136,13 @@ unsplash-dedupe:
 unsplash-meta:
 	set -a; [ -f .env.local ] && . .env.local; [ -f .env ] && . .env; set +a; \
 	$(PY) update_unsplash_metadata.py --dir unsplash_images $(if $(UNSPLASH_LIMIT),--limit $(UNSPLASH_LIMIT),) --sleep $(UNSPLASH_SLEEP)
+
+unsplash-topics:
+	set -a; [ -f .env.local ] && . .env.local; [ -f .env ] && . .env; set +a; \
+	$(PY) $(UNSPLASH_SCRIPT) \
+	  --out-dir "$(UNSPLASH_OUT_DIR)" \
+	  --sleep $(UNSPLASH_SLEEP) \
+	  --only-queries "dog" "cat" "fish aquarium" "plush toy" "potted herb gardening" "sneakers sport"
 
 run-iteratively:
 	@# Auto-load env vars from .env.local/.env and export them for subcommands

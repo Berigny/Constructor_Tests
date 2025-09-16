@@ -3,6 +3,7 @@ import json
 import time
 import argparse
 import requests
+from typing import List
 
 # Replace with your Unsplash Access Key
 access_key = os.environ.get("UNSPLASH_ACCESS_KEY", "BKixl8dRzGpGeFmQ6unCJMHKfIBtTmBx5mWLaL4DdVk")
@@ -162,8 +163,48 @@ for idx, (query, collection) in enumerate(pairs, start=1):
     # Rate limiting buffer
     time.sleep(args.sleep)
 
-# Save metadata to a JSON file
+# Merge with existing metadata.json (non-destructive)
 metadata_file = os.path.join(out_dir, "metadata.json")
-with open(metadata_file, 'w') as f:
-    json.dump(all_metadata, f, indent=4)
-print(f"Saved metadata to {metadata_file}")
+existing: List[dict] = []
+by_id = {}
+try:
+    if os.path.exists(metadata_file):
+        with open(metadata_file, 'r', encoding='utf-8') as f:
+            existing = json.load(f)
+            if not isinstance(existing, list):
+                existing = []
+except Exception:
+    existing = []
+
+# Index existing by photo_id or filename
+for r in existing:
+    pid = str(r.get('photo_id') or r.get('id') or '').strip()
+    if pid:
+        by_id[pid] = r
+    else:
+        fn = str(r.get('filename') or '').strip()
+        if fn:
+            by_id[os.path.splitext(fn)[0]] = r
+
+# Merge new entries
+for r in all_metadata:
+    pid = str(r.get('photo_id') or r.get('id') or '').strip()
+    if not pid:
+        # try filename
+        fn = str(r.get('filename') or '').strip()
+        if fn:
+            pid = os.path.splitext(fn)[0]
+    if pid and pid in by_id:
+        # update only missing fields
+        dest = by_id[pid]
+        for k, v in r.items():
+            if k not in dest or (dest.get(k) in (None, '', []) and v not in (None, '', [])):
+                dest[k] = v
+    else:
+        existing.append(r)
+        if pid:
+            by_id[pid] = r
+
+with open(metadata_file, 'w', encoding='utf-8') as f:
+    json.dump(existing, f, indent=4)
+print(f"Saved metadata to {metadata_file} (merged {len(all_metadata)} entries, total {len(existing)})")
