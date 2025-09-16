@@ -5,3 +5,4 @@ langchain-google-vertexai
 streamlit
 scikit-learn
 openai
+streamlit-clickable-images

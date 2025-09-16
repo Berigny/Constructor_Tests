@@ -9,6 +9,8 @@ from urllib.parse import urljoin
 from datetime import datetime
 import csv
 import numpy as np
+import base64
+import random
 import streamlit as st
 
 
@@ -305,7 +307,7 @@ def cosine(a: np.ndarray, b: np.ndarray) -> float:
     return float(a.dot(b.T) / (na * nb))
 
 
-def build_greedy_tree(leaf_ids: List[int], embeddings: np.ndarray) -> Any:
+def build_greedy_tree(leaf_ids: List[int], embeddings: np.ndarray, seed: Optional[int] = None) -> Any:
     n = len(leaf_ids)
     if n == 0:
         return None
@@ -314,10 +316,14 @@ def build_greedy_tree(leaf_ids: List[int], embeddings: np.ndarray) -> Any:
     if n == 2:
         a, b = leaf_ids[0], leaf_ids[1]
         return {"left": a, "right": b, "pair_idx": (a, b)}
+    order = list(leaf_ids)
+    if seed is not None:
+        rnd = random.Random(seed)
+        rnd.shuffle(order)
     best_pair = None
     best_balance = None
-    for i in leaf_ids:  # consider pivots drawn from current pool
-        for j in leaf_ids:
+    for i in order:  # consider pivots drawn from current pool (shuffled if seed)
+        for j in order:
             if j <= i:
                 continue
             left, right = [], []
@@ -338,14 +344,14 @@ def build_greedy_tree(leaf_ids: List[int], embeddings: np.ndarray) -> Any:
         # Fallback even split
         mid_left = leaf_ids[::2]
         mid_right = leaf_ids[1::2]
-        return {"left": build_greedy_tree(mid_left, embeddings), "right": build_greedy_tree(mid_right, embeddings), "pair_idx": (mid_left[0], mid_right[0])}
+        return {"left": build_greedy_tree(mid_left, embeddings, seed), "right": build_greedy_tree(mid_right, embeddings, seed), "pair_idx": (mid_left[0], mid_right[0])}
     i, j, left, right = best_pair
     # Guard against degenerate splits
     if len(left) == 0 or len(right) == 0 or (len(left) == n or len(right) == n):
         mid_left = leaf_ids[::2]
         mid_right = leaf_ids[1::2]
-        return {"left": build_greedy_tree(mid_left, embeddings), "right": build_greedy_tree(mid_right, embeddings), "pair_idx": (mid_left[0], mid_right[0])}
-    return {"left": build_greedy_tree(left, embeddings), "right": build_greedy_tree(right, embeddings), "pair_idx": (i, j)}
+        return {"left": build_greedy_tree(mid_left, embeddings, seed), "right": build_greedy_tree(mid_right, embeddings, seed), "pair_idx": (mid_left[0], mid_right[0])}
+    return {"left": build_greedy_tree(left, embeddings, seed), "right": build_greedy_tree(right, embeddings, seed), "pair_idx": (i, j)}
 
 
 def walk_tree(tree: Any, bits: List[int]) -> Any:
@@ -353,6 +359,56 @@ def walk_tree(tree: Any, bits: List[int]) -> Any:
     for b in bits:
         node = node["left"] if b == 0 else node["right"]
     return node
+
+
+def node_size(node: Any) -> int:
+    if node is None:
+        return 0
+    if isinstance(node, dict):
+        return node_size(node.get("left")) + node_size(node.get("right"))
+    return 1
+
+
+def file_to_data_uri(path: str) -> Optional[str]:
+    try:
+        with open(path, "rb") as f:
+            b = f.read()
+        b64 = base64.b64encode(b).decode("ascii")
+        return f"data:image/jpeg;base64,{b64}"
+    except Exception:
+        return None
+
+
+def openrouter_summarise_phrase(description: str, tags: List[str]) -> Optional[str]:
+    if not st.session_state.get("llm_enabled"):
+        return None
+    key = os.environ.get("OPENROUTER_API_KEY")
+    base = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    model = os.environ.get("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+    if not key:
+        return None
+    try:
+        import requests as _rq
+        prompt = (
+            "Based on the image metadata below, produce a very short natural language shopping phrase (max 10 words) "
+            "describing product domain and audience, similar to 'tech and gadgets for men' or 'gardening and plant products for women'. "
+            "Avoid the word 'gift'.\n\n"
+            f"alt_description: {description}\n"
+            f"tags: {', '.join(tags) if tags else ''}\n"
+        )
+        data = {
+            "model": model,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ]
+        }
+        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+        resp = _rq.post(f"{base}/chat/completions", json=data, headers=headers, timeout=20)
+        resp.raise_for_status()
+        txt = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+        return txt or None
+    except Exception:
+        return None
 
 
 def prettify_token(s: str) -> str:
@@ -1225,6 +1281,62 @@ with tabs[1]:
                 return True
             return False
 
+        # Optional: Fetch metadata from Unsplash for local images
+        def fetch_unsplash_meta_for_rows(rows, limit=30):
+            try:
+                try:
+                    ak = st.secrets.get("UNSPLASH_ACCESS_KEY", "")
+                except Exception:
+                    ak = os.environ.get("UNSPLASH_ACCESS_KEY", "")
+                if not ak:
+                    st.warning("Set UNSPLASH_ACCESS_KEY in secrets to fetch metadata.")
+                    return
+                import requests as _rq
+                overrides = st.session_state.get("img_meta_override", {})
+                fetched = 0
+                for _, r in rows.iterrows():
+                    if fetched >= limit:
+                        break
+                    pid = r.get("photo_id") or r.get("id")
+                    if not pid:
+                        continue
+                    if pid in overrides:
+                        continue
+                    url = f"https://api.unsplash.com/photos/{pid}"
+                    resp = _rq.get(url, params={"client_id": ak}, timeout=10)
+                    if resp.status_code == 200:
+                        j = resp.json()
+                        alt = j.get("alt_description") or j.get("description") or ""
+                        tags = [t.get("title") for t in (j.get("tags") or []) if isinstance(t, dict) and t.get("title")]
+                        overrides[pid] = {"alt_description": alt, "tags": tags}
+                        fetched += 1
+                st.session_state["img_meta_override"] = overrides
+                if fetched:
+                    st.success(f"Fetched metadata for {fetched} images")
+                    st.rerun()
+            except Exception as e:
+                st.warning(f"Metadata fetch failed: {e}")
+
+        if st.button("Fetch metadata from Unsplash", key="img_fetch_meta"):
+            fetch_unsplash_meta_for_rows(df_meta)
+
+        # Apply overrides (if any) before embedding
+        overrides = st.session_state.get("img_meta_override", {})
+        if overrides:
+            df_meta = df_meta.copy()
+            for idx, r in df_meta.iterrows():
+                pid = r.get("photo_id") or r.get("id")
+                if pid and pid in overrides:
+                    ov = overrides[pid]
+                    if ov.get("alt_description"):
+                        df_meta.at[idx, "alt_description"] = ov["alt_description"]
+                    if ov.get("tags") is not None:
+                        df_meta.at[idx, "tags"] = ov["tags"]
+            # recompute text
+            df_meta["text"] = (
+                df_meta["alt_description"].fillna("").astype(str) + " " + df_meta["tags"].apply(lambda lst: " ".join([str(t) for t in lst]))
+            ).str.lower()
+
         # Cache/rebuild embeddings if path changed
         key_path = f"img_meta_path"
         key_tree = f"img_tree"
@@ -1235,7 +1347,8 @@ with tabs[1]:
             st.session_state[key_bits] = []
             emb = embed_texts(df_meta["text"].tolist())
             st.session_state[key_emb] = emb
-            st.session_state[key_tree] = build_greedy_tree(list(range(len(df_meta))), emb)
+            st.session_state.setdefault("img_seed", 0)
+            st.session_state[key_tree] = build_greedy_tree(list(range(len(df_meta))), emb, seed=st.session_state["img_seed"])
         bits = st.session_state.get(key_bits, [])
         tree = st.session_state.get(key_tree)
         emb = st.session_state.get(key_emb)
@@ -1244,23 +1357,69 @@ with tabs[1]:
         except Exception:
             st.session_state[key_bits] = []
             node_img = walk_tree(tree, [])
+        st.caption(f"Remaining candidates: {node_size(node_img) if isinstance(node_img, dict) else 1}")
         if isinstance(node_img, dict):
             i, j = node_img["pair_idx"]
             left_row = df_meta.iloc[i]
             right_row = df_meta.iloc[j]
-            col1, col2 = st.columns(2)
-            with col1:
-                if not _render_image(left_row):
-                    st.write("No image available")
-                if st.button("Left", key="img_left"):
+            # Clickable images
+            try:
+                from clickable_images import clickable_images  # type: ignore
+                # Build sources (prefer local)
+                srcs = []
+                titles = []
+                for r in (left_row, right_row):
+                    lp = _row_local_path(r)
+                    if lp:
+                        uri = file_to_data_uri(lp)
+                        if uri:
+                            srcs.append(uri)
+                        else:
+                            pid = r.get("photo_id") or r.get("id") or ""
+                            srcs.append(f"https://source.unsplash.com/{pid}/600x400")
+                    else:
+                        pid = r.get("photo_id") or r.get("id") or ""
+                        srcs.append(f"https://source.unsplash.com/{pid}/600x400")
+                    titles.append(r.get("alt_description") or "")
+                st.markdown("### Which vibe matches?")
+                clicked = clickable_images(srcs, titles=titles, div_style={"display": "flex", "justify-content": "space-between", "align-items": "center"}, img_style={"max-width": "48%", "height": "auto", "border-radius": "8px", "border": "1px solid #ddd"})
+                if clicked == 0:
                     st.session_state[key_bits].append(0)
                     st.rerun()
-            with col2:
-                if not _render_image(right_row):
-                    st.write("No image available")
-                if st.button("Right", key="img_right"):
+                elif clicked == 1:
                     st.session_state[key_bits].append(1)
                     st.rerun()
+                # Neither match CTA
+                ncol = st.columns([1,1,1])
+                with ncol[1]:
+                    if st.button("Neither match", key="img_neither"):
+                        st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
+                        emb = st.session_state.get(key_emb)
+                        st.session_state[key_tree] = build_greedy_tree(list(range(len(df_meta))), emb, seed=st.session_state["img_seed"])
+                        st.rerun()
+            except Exception:
+                # Fallback to buttons if component not available
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("### Which vibe matches?")
+                    if not _render_image(left_row):
+                        st.write("No image available")
+                    if st.button("This matches", key="img_left_btn"):
+                        st.session_state[key_bits].append(0)
+                        st.rerun()
+                with col2:
+                    if not _render_image(right_row):
+                        st.write("No image available")
+                    if st.button("This matches", key="img_right_btn"):
+                        st.session_state[key_bits].append(1)
+                        st.rerun()
+                ccent = st.columns([1,1,1])
+                with ccent[1]:
+                    if st.button("Neither match", key="img_neither_btn"):
+                        st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
+                        emb = st.session_state.get(key_emb)
+                        st.session_state[key_tree] = build_greedy_tree(list(range(len(df_meta))), emb, seed=st.session_state["img_seed"])
+                        st.rerun()
         else:
             leaf_idx = node_img
             try:
@@ -1279,7 +1438,9 @@ with tabs[1]:
                     tags = []
                 tag_text = ", ".join([str(t) for t in tags][:6])
                 alt_text = str(leaf.get("alt_description") or "")
-                concept = (alt_text + "; " + tag_text).strip("; ")
+                # If LLM is enabled, ask it to produce a short shopping phrase; otherwise keep a simple concept
+                concept_llm = openrouter_summarise_phrase(alt_text, tags)
+                concept = concept_llm or alt_text or tag_text or "popular products"
                 st.write(f"Concept: {concept}")
                 if st.button("Find products", key="img_go"):
                     include_cats = interest_to_categories(concept or "", restrict_to_whitelist=True)
