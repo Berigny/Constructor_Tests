@@ -1041,14 +1041,29 @@ quiz = load_quiz()
 
 with st.sidebar:
     st.header("Settings")
-    default_key = os.environ.get("CONSTRUCTOR_PUBLIC_KEY") or os.environ.get("CONSTRUCTOR_API_KEY") or os.environ.get("CONSTRUCTOR_KEY") or ""
-    raw_key = st.text_input("Public search key (value or 'key=…')", value=default_key)
-    api_key = normalize_public_key(raw_key)
-    if api_key:
-        os.environ["CONSTRUCTOR_PUBLIC_KEY"] = api_key
-    base_url = st.text_input("Constructor base", value=os.environ.get("CONSTRUCTOR_BASE_URL", "https://ac.cnstrc.com"))
+    # PIN-gated access to Streamlit secrets
+    pin_val = st.text_input("Enter PIN", type="password")
+    secrets_unlocked = pin_val.strip().upper() == "ALEX" if pin_val else False
+    st.session_state["secrets_unlocked"] = secrets_unlocked
+    if secrets_unlocked:
+        st.caption("Secrets unlocked")
+
+    # Constructor config from secrets; no manual base/key inputs
+    base_url = os.environ.get("CONSTRUCTOR_BASE_URL", "https://ac.cnstrc.com")
     os.environ["CONSTRUCTOR_BASE_URL"] = base_url
-    st.markdown("Uses the front-end natural language search URL that returns JSON [key_GZTqlLr41FS2p7AY].")
+    api_key = ""
+    if secrets_unlocked:
+        try:
+            api_key = st.secrets.get("CONS_KEY", "")
+        except Exception:
+            api_key = ""
+        if api_key:
+            api_key = normalize_public_key(api_key)
+            os.environ["CONSTRUCTOR_PUBLIC_KEY"] = api_key
+    if not api_key:
+        api_key = os.environ.get("CONSTRUCTOR_PUBLIC_KEY", "")
+    st.markdown("Constructor key is read from secrets when PIN is entered.")
+
     per_page = st.slider("Results per iteration", min_value=10, max_value=50, value=24, step=2)
     pages_per_iter = st.slider("Pages per iteration", min_value=1, max_value=3, value=1)
     # Defaults ON (no toggles): include budget in query, strict budget, logging, restrict to whitelist
@@ -1058,26 +1073,21 @@ with st.sidebar:
     restrict_cats = True
 
     st.subheader("LLM")
-    llm_wanted = st.checkbox("Use LLM (OpenRouter)", value=st.session_state.get("llm_wanted", False))
-    st.session_state["llm_wanted"] = llm_wanted
-    if llm_wanted:
-        pin = st.text_input("Enter PIN", type="password")
-        if pin:
-            if pin.strip().upper() == "ALEX":
-                # Enable LLM using secret key if provided
-                st.session_state["llm_enabled"] = True
-                try:
-                    secret_key = st.secrets.get("Gifting", "")
-                except Exception:
-                    secret_key = ""
-                if secret_key and not os.environ.get("OPENROUTER_API_KEY"):
-                    os.environ["OPENROUTER_API_KEY"] = secret_key
-                os.environ.setdefault("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-                os.environ.setdefault("OPENROUTER_MODEL", "openai/gpt-4o-mini")
-                st.caption("LLM enabled")
-            else:
-                st.session_state["llm_enabled"] = False
-                st.warning("Incorrect PIN")
+    model_opt = st.selectbox("LLM model", options=["Please select", "gpt-4o-mini"], index=0)
+    if model_opt != "Please select" and secrets_unlocked:
+        try:
+            secret_key = st.secrets.get("Gifting", "")
+        except Exception:
+            secret_key = ""
+        if secret_key:
+            os.environ["OPENROUTER_API_KEY"] = secret_key
+            os.environ["OPENROUTER_BASE_URL"] = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+            os.environ["OPENROUTER_MODEL"] = "openai/gpt-4o-mini" if model_opt == "gpt-4o-mini" else model_opt
+            st.session_state["llm_enabled"] = True
+            st.caption("LLM enabled")
+        else:
+            st.session_state["llm_enabled"] = False
+            st.warning("LLM selected but no OpenRouter key in secrets (Gifting)")
     else:
         st.session_state["llm_enabled"] = False
 
