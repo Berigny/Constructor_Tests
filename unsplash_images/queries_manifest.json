@@ -1,0 +1,73 @@
+{
+  "categories": {
+    "Core Personality Dimensions": [
+      "minimalist desk",
+      "maximalist interior",
+      "colorful street art",
+      "black and white portrait",
+      "luxury fashion",
+      "thrift vintage clothing",
+      "nature hiking trail",
+      "city nightlife neon",
+      "cozy home living room",
+      "modern architecture glass"
+    ],
+    "Values & Orientation": [
+      "family gathering dinner",
+      "friends party candid",
+      "solo traveler mountain",
+      "volunteer helping hands",
+      "yoga meditation serene",
+      "sports team huddle",
+      "political protest crowd",
+      "business startup team"
+    ],
+    "Generational Markers": [
+      "retro 70s living room",
+      "90s cassette player",
+      "early 2000s flip phone",
+      "modern gaming setup RGB",
+      "vinyl record collection",
+      "classic car vintage",
+      "TikTok selfie style",
+      "Instagram cafe aesthetic"
+    ],
+    "Emotional / Mood Axes": [
+      "serene forest fog",
+      "dramatic thunderstorm lightning",
+      "sunset beach calm",
+      "crowded festival happy",
+      "abstract chaotic art",
+      "clean geometric shapes",
+      "soft pastel flat lay",
+      "high contrast street photography"
+    ],
+    "Interests & Hobbies": [
+      "gourmet cooking kitchen",
+      "gardening hands soil",
+      "surfing ocean wave",
+      "cycling outdoors urban",
+      "vinyl dj turntable",
+      "book reading cozy corner",
+      "film camera retro",
+      "gaming console setup",
+      "crafts handmade pottery",
+      "luxury watch closeup"
+    ],
+    "Contrasts": [
+      "minimalist white room",
+      "maximalist colorful room",
+      "mountain solitude",
+      "city nightlife club",
+      "calm yoga pose",
+      "intense gym workout",
+      "handmade pottery",
+      "luxury branded handbag",
+      "vintage record player",
+      "modern wireless headphones"
+    ]
+  },
+  "australian_bias": true,
+  "per_query": 1,
+  "timestamp": 1758096506
+}
