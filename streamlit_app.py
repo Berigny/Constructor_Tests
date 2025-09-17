@@ -1455,6 +1455,7 @@ with tabs[0]:
             left_row = df_meta.iloc[i]
             right_row = df_meta.iloc[j]
             # Clickable images
+            st.markdown("### Which vibe matches?")
             try:
                 from clickable_images import clickable_images  # type: ignore
                 # Build sources (prefer local)
@@ -1473,7 +1474,7 @@ with tabs[0]:
                         pid = r.get("photo_id") or r.get("id") or ""
                         srcs.append(f"https://source.unsplash.com/{pid}/600x400")
                     titles.append("")
-                st.markdown("### Which vibe matches?")
+
                 clicked = clickable_images(
                     srcs,
                     titles=titles,
@@ -1510,7 +1511,6 @@ with tabs[0]:
                 # Fallback to buttons if component not available
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.markdown("### Which vibe matches?")
                     if not _render_image(left_row):
                         st.write("No image available")
                     if st.button("This matches", key="img_left_btn"):
