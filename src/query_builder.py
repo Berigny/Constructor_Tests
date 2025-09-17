@@ -84,7 +84,14 @@ class QueryBuilder:
         so the UI can visualise what happened.
         """
 
-        raw_tags = [tag for tag in (photo_tags or []) if isinstance(tag, str)]
+        raw_tags: List[str] = []
+        for tag in photo_tags or []:
+            if tag is None:
+                continue
+            text = str(tag).strip()
+            if not text:
+                continue
+            raw_tags.append(text)
         filtered: List[str] = []
         dropped_forbidden: List[str] = []
         dropped_not_allowed: List[str] = []
