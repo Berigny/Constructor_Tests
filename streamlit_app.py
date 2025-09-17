@@ -19,6 +19,11 @@ import random
 import streamlit as st
 
 from src.image_loader import SUPPORTED, discover_images
+from src.query_composer import (
+    compose_query_from_tags,
+    sanitize_query,
+    top_tags_from_rows,
+)
 
 
 # ----------------------- Minimal .env loader -----------------------
@@ -720,16 +725,6 @@ def build_query_text(relationship: str, gender: Optional[str], age_text: Optiona
     if budget_phrase:
         parts.append(budget_phrase)
     return " ".join(parts).strip()
-
-
-def sanitize_query(q: str) -> str:
-    """Remove 'gift'/'gifts' tokens from query to avoid gift card bias."""
-    s = re.sub(r"\b(giftcards?|gifts?)\b", "", q, flags=re.IGNORECASE)
-    # Cleanup extra spaces
-    s = re.sub(r"\s+", " ", s).strip()
-    # Remove stray spaces before punctuation
-    s = re.sub(r"\s+([.,;:!?])", r"\1", s)
-    return s
 
 
 def divergent_variant(base_query: str, interest: str, include_cats: List[str], price_phrase: Optional[str]) -> str:
@@ -1782,13 +1777,25 @@ with tabs[0]:
                 if not isinstance(tags, list):
                     tags = []
                 alt_text = str(leaf.get("alt_description") or "")
-                concept_llm = openrouter_summarise_dataset(df_meta) or openrouter_summarise_phrase(alt_text, tags)
-                pid = leaf.get("photo_id") or leaf.get("id")
-                concept = concept_llm or concept_from_meta(alt_text, tags, pid)
+                selected_rows = []
+                for idx_sel in selected_indices:
+                    try:
+                        selected_rows.append(df_meta.iloc[idx_sel])
+                    except Exception:
+                        continue
+                if not selected_rows:
+                    selected_rows = [leaf]
 
-                include_cats_prev = interest_to_categories(concept or "", restrict_to_whitelist=True)
-                q_preview = build_query_text("", None, None, concept or "", None, None)
+                taste_top = top_tags_from_rows(selected_rows, top_k=6)
+                if not taste_top and isinstance(tags, list):
+                    taste_top = [str(t) for t in tags if str(t).strip()]
+
+                plan = compose_query_from_tags(taste_top)
+                include_cats_prev = list(plan.categories)
+                q_preview = plan.query
                 with st.expander("Query & URL preview", expanded=True):
+                    st.write(f"Taste tags: {', '.join(taste_top) or '-'}")
+                    st.write(f"Query tokens: {', '.join(plan.tokens) or '-'}")
                     st.write(f"Categories: {', '.join(include_cats_prev) or '-'}")
                     st.write(f"NL query: {q_preview}")
                     if api_key:
@@ -1798,9 +1805,7 @@ with tabs[0]:
                         except Exception:
                             pass
                 if st.button("Find products", key="img_go"):
-                    include_cats = interest_to_categories(concept or "", restrict_to_whitelist=True)
-                    q_base_img = build_query_text("", None, None, concept or "", None, None)
-                    run_product_search(q_base_img, include_cats, None, None, label="Images")
+                    run_product_search(plan.query, list(plan.categories), None, None, label="Images")
 
 if False:
     pass  # placeholder removed old inline search block
