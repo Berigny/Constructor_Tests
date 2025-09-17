@@ -295,7 +295,8 @@
     "grayscale": [],
     "group": [],
     "handcrafted": [
-      "Crafts"
+      "Crafts",
+      "Home"
     ],
     "head": [],
     "health": [],
@@ -378,8 +379,15 @@
     "sofa": [],
     "standing": [],
     "street": [],
-    "summer": [],
-    "sun": [],
+    "summer": [
+      "Fashion",
+      "Outdoors",
+      "Travel"
+    ],
+    "sun": [
+      "Fashion",
+      "Outdoors"
+    ],
     "sunset": [],
     "sydney": [],
     "table": [],
@@ -403,7 +411,10 @@
     "use": [],
     "vehicle": [],
     "view": [],
-    "vintage": [],
+    "vintage": [
+      "Entertainment",
+      "Home"
+    ],
     "vinyl": [
       "Entertainment"
     ],
@@ -414,7 +425,9 @@
     "wearing": [],
     "website": [],
     "wellness": [],
-    "window": [],
+    "window": [
+      "Home"
+    ],
     "wooden": [],
     "woodland": [],
     "work": [],
