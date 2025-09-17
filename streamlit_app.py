@@ -1058,6 +1058,16 @@ def score_item(item: Dict[str, Any], interest: str, lo: Optional[float], hi: Opt
 
 # ----------------------- UI -----------------------
 st.set_page_config(page_title="Gift Finder", page_icon="🎁", layout="centered")
+st.markdown(
+    """
+    <style>
+    div[data-testid="stMarkdownContainer"]:has(> div[data-image-box]) {
+        margin: 0 !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 st.title("Gift Finder")
 st.caption("Choose match mode and amounts, then select recipient details.")
 
@@ -1390,7 +1400,7 @@ with tabs[0]:
             safe_alt = html.escape(alt_text or "")
             st.markdown(
                 f"""
-                <div style="width: 100%; height: {height}px; overflow: hidden; border-radius: 12px; border: 1px solid #ddd;">
+                <div data-image-box style="width: 100%; height: {height}px; overflow: hidden; border-radius: 12px; border: 1px solid #ddd;">
                     <img src="{src}" alt="{safe_alt}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
                 </div>
                 """,
