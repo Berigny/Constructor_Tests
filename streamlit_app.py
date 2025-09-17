@@ -1072,6 +1072,13 @@ with st.sidebar:
     if secrets_unlocked:
         st.caption("Secrets unlocked")
 
+    st.subheader("Match Controls")
+    match_type = st.radio("Match type", options=["Constructor", "Powered-up"], horizontal=True, index=1)
+    gifts_opt = st.slider("Number of gifts", min_value=1, max_value=5, value=3)
+    queries_opt = 1
+    if match_type == "Powered-up":
+        queries_opt = st.slider("Queries", min_value=1, max_value=5, value=3)
+
     # Constructor config from secrets; no manual base/key inputs
     base_url = os.environ.get("CONSTRUCTOR_BASE_URL", "https://ac.cnstrc.com")
     os.environ["CONSTRUCTOR_BASE_URL"] = base_url
@@ -1112,14 +1119,6 @@ with st.sidebar:
             st.warning("LLM selected but no OpenRouter key in secrets (Gifting)")
     else:
         st.session_state["llm_enabled"] = False
-
-# Global controls above recipient selection
-st.subheader("Match Controls")
-match_type = st.radio("Match type", options=["Constructor", "Powered-up"], horizontal=True, index=1)
-gifts_opt = st.slider("Number of gifts", min_value=1, max_value=5, value=3)
-queries_opt = 1
-if match_type == "Powered-up":
-    queries_opt = st.slider("Queries", min_value=1, max_value=5, value=3)
 
 tabs = st.tabs(["Images", "Quiz", "URLs"])
 
