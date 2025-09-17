@@ -3,7 +3,11 @@ import json
 import uuid
 import re
 import html
-from typing import Any, Dict, List, Optional, Tuple
+import hashlib
+import mimetypes
+from collections import Counter
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
 from urllib.parse import urljoin
@@ -13,6 +17,8 @@ import numpy as np
 import base64
 import random
 import streamlit as st
+
+from src.image_loader import SUPPORTED, discover_images
 
 
 # ----------------------- Minimal .env loader -----------------------
@@ -222,7 +228,7 @@ def run_product_search(q_base: str, include_cats: List[str], lo: Optional[float]
 
 # ----------------------- Images Tab (Greedy Tree) -----------------------
 @st.cache_data
-def load_meta_df(meta_path: str) -> Optional[Any]:
+def load_meta_df(meta_path: str, folder_sig: str = "") -> Optional[Any]:
     try:
         import pandas as pd  # local import to avoid global dependency if unused
         with open(meta_path, "r", encoding="utf-8") as f:
@@ -246,20 +252,29 @@ def load_meta_df(meta_path: str) -> Optional[Any]:
                 df["photo_id"] = df["filename"].astype(str).str.replace(".jpg", "", regex=False)
             else:
                 df["photo_id"] = ""
-        # If no usable photo_id exists in metadata, fall back to local JPG files in the same folder
+        # If no usable photo_id exists in metadata, fall back to local images in the same folder
         if (df.get("photo_id") is not None) and df["photo_id"].astype(str).str.strip().eq("").all():
             base_dir = os.path.dirname(meta_path)
             try:
-                files = [f for f in os.listdir(base_dir) if f.lower().endswith('.jpg')]
+                discovered, _ = discover_images(base_dir or ".")
             except Exception:
-                files = []
-            if files:
-                pids = [os.path.splitext(f)[0] for f in files]
+                discovered = []
+            if discovered:
+                base_path = Path(base_dir or ".").resolve()
+                rel_files = []
+                pids = []
+                for path in discovered:
+                    try:
+                        rel = str(path.resolve().relative_to(base_path))
+                    except Exception:
+                        rel = path.name
+                    rel_files.append(rel)
+                    pids.append(path.stem)
                 df = pd.DataFrame({
                     "photo_id": pids,
-                    "filename": files,
+                    "filename": rel_files,
                     "alt_description": pids,
-                    "tags": [[]] * len(files),
+                    "tags": [[]] * len(pids),
                 })
         df["text"] = (
             df["alt_description"].fillna("").astype(str)
@@ -397,8 +412,11 @@ def file_to_data_uri(path: str) -> Optional[str]:
     try:
         with open(path, "rb") as f:
             b = f.read()
+        mime, _ = mimetypes.guess_type(path)
+        if not mime:
+            mime = "image/jpeg"
         b64 = base64.b64encode(b).decode("ascii")
-        return f"data:image/jpeg;base64,{b64}"
+        return f"data:{mime};base64,{b64}"
     except Exception:
         return None
 
@@ -1374,27 +1392,114 @@ with tabs[2]:
 
 with tabs[0]:
     # Images vibe picker (simplified UI)
+    files, deck_sig = discover_images("unsplash_images")
+    total_files = len(files)
+    use_all = st.sidebar.toggle("Use all images", value=True, key="use_all_images")
+    slider_min = 50 if total_files >= 50 else max(1, total_files)
+    slider_max = 400 if total_files >= 400 else max(slider_min, total_files if total_files else 50)
+    if slider_max < slider_min:
+        slider_max = slider_min
+    default_value = min(100, total_files) if total_files else slider_min
+    step = 10 if slider_max > slider_min else 1
+    deck_size = st.sidebar.slider(
+        "Deck size",
+        min_value=slider_min,
+        max_value=slider_max,
+        value=min(max(slider_min, default_value), slider_max),
+        step=step,
+        key="deck_size",
+    )
+    rng = random.Random(deck_sig)
+    files_sorted = sorted(files)
+    rng.shuffle(files_sorted)
+    deck = files_sorted if use_all or deck_size >= len(files_sorted) else files_sorted[:deck_size]
+    st.sidebar.write(f"Found: **{total_files}** | Using: **{len(deck)}**")
+    names = [p.name for p in files]
+    dupes = [n for n, c in Counter(names).items() if c > 1]
+    exts = Counter(p.suffix.lower() for p in files)
+    with st.sidebar.expander("Diagnostics", expanded=False):
+        st.write("Extensions:", dict(exts))
+        if dupes:
+            st.warning(f"Duplicate filenames: {len(dupes)} (e.g., {dupes[:3]})")
+    if len(deck) == 0:
+        st.info("Add images to the 'unsplash_images' folder to get started.")
+        st.stop()
+
     meta_path = os.path.join("unsplash_images", "metadata.json")
-    df_meta = load_meta_df(meta_path)
-    if df_meta is None or (hasattr(df_meta, 'empty') and df_meta.empty):
+    df_meta = load_meta_df(meta_path, deck_sig)
+    if (df_meta is None or (hasattr(df_meta, "empty") and df_meta.empty)) and deck:
+        try:
+            import pandas as pd  # type: ignore
+
+            base_path = Path("unsplash_images").resolve()
+            records = []
+            for path in deck:
+                try:
+                    rel = str(path.resolve().relative_to(base_path))
+                except Exception:
+                    rel = path.name
+                records.append(
+                    {
+                        "photo_id": path.stem,
+                        "filename": rel,
+                        "alt_description": path.stem,
+                        "tags": [],
+                    }
+                )
+            if records:
+                df_meta = pd.DataFrame(records)
+                df_meta["text"] = (
+                    df_meta["alt_description"].fillna("").astype(str)
+                    + " "
+                    + df_meta["tags"].apply(lambda lst: " ".join([str(t) for t in lst]))
+                ).str.lower()
+        except Exception:
+            df_meta = None
+    if df_meta is None or (hasattr(df_meta, "empty") and df_meta.empty):
         st.info("Provide a valid metadata.json from Unsplash downloads.")
     else:
-        # Local/remote image helpers
-        base_dir = os.path.dirname(meta_path)
+        base_dir = os.path.dirname(meta_path) or "."
+        base_path = Path(base_dir).resolve()
+        file_by_name: Dict[str, Path] = {}
+        file_by_rel: Dict[str, Path] = {}
+        file_by_stem: Dict[str, Path] = {}
+        for p in files:
+            try:
+                resolved = p.resolve()
+            except Exception:
+                resolved = Path(p)
+            file_by_name.setdefault(p.name, resolved)
+            try:
+                rel = str(resolved.relative_to(base_path))
+                file_by_rel.setdefault(rel, resolved)
+            except Exception:
+                pass
+            file_by_stem.setdefault(resolved.stem, resolved)
+
         def _row_pid(r):
             return r.get("photo_id") or r.get("id") or ""
+
         def _row_local_path(r):
             fn = r.get("filename")
             if isinstance(fn, str) and fn:
-                p = os.path.join(base_dir, fn)
-                if os.path.exists(p):
-                    return p
-            pid = _row_pid(r)
+                raw = fn.strip()
+                candidate = file_by_rel.get(raw) or file_by_name.get(Path(raw).name)
+                if candidate and candidate.exists():
+                    return str(candidate)
+                candidate_path = base_path / raw
+                if candidate_path.exists():
+                    return str(candidate_path)
+            pid = str(_row_pid(r)).strip()
             if pid:
-                p = os.path.join(base_dir, f"{pid}.jpg")
-                if os.path.exists(p):
-                    return p
+                candidate = file_by_stem.get(pid)
+                if candidate and candidate.exists():
+                    return str(candidate)
+                for ext in SUPPORTED:
+                    candidate_path = base_path / f"{pid}{ext}"
+                    if candidate_path.exists():
+                        return str(candidate_path)
             return None
+
         def _show_image_box(src: str, alt_text: str = "", height: int = 240) -> None:
             safe_alt = html.escape(alt_text or "")
             st.markdown(
@@ -1420,9 +1525,6 @@ with tabs[0]:
                 return True
             return False
 
-        # In-app metadata fetching removed; use the CLI script 'update_unsplash_metadata.py' instead.
-
-        # Apply overrides (if any) before embedding
         overrides = st.session_state.get("img_meta_override", {})
         if overrides:
             df_meta = df_meta.copy()
@@ -1434,26 +1536,136 @@ with tabs[0]:
                         df_meta.at[idx, "alt_description"] = ov["alt_description"]
                     if ov.get("tags") is not None:
                         df_meta.at[idx, "tags"] = ov["tags"]
-            # recompute text
-            df_meta["text"] = (
-                df_meta["alt_description"].fillna("").astype(str) + " " + df_meta["tags"].apply(lambda lst: " ".join([str(t) for t in lst]))
-            ).str.lower()
 
-        # Cache/rebuild embeddings if path changed
-        key_path = f"img_meta_path"
-        key_tree = f"img_tree"
-        key_bits = f"img_path_bits"
-        key_emb = f"img_embeddings"
-        if st.session_state.get(key_path) != meta_path:
+        try:
+            import pandas as pd  # type: ignore
+
+            existing_paths: Set[Path] = set()
+            for _, row in df_meta.iterrows():
+                lp = _row_local_path(row)
+                if not lp:
+                    continue
+                try:
+                    existing_paths.add(Path(lp).resolve())
+                except Exception:
+                    existing_paths.add(Path(lp))
+            additions = []
+            for path in deck:
+                try:
+                    resolved = path.resolve()
+                except Exception:
+                    resolved = path
+                if resolved in existing_paths:
+                    continue
+                try:
+                    rel = str(resolved.relative_to(base_path))
+                except Exception:
+                    rel = path.name
+                additions.append(
+                    {
+                        "photo_id": path.stem,
+                        "filename": rel,
+                        "alt_description": path.stem.replace("_", " ").replace("-", " "),
+                        "tags": [],
+                    }
+                )
+                existing_paths.add(resolved)
+            if additions:
+                df_meta = pd.concat([df_meta, pd.DataFrame(additions)], ignore_index=True)
+        except Exception:
+            pass
+
+        if "tags" in df_meta.columns:
+            df_meta["tags"] = df_meta["tags"].apply(lambda x: x if isinstance(x, list) else [])
+        else:
+            df_meta["tags"] = [[] for _ in range(len(df_meta))]
+        if "alt_description" not in df_meta.columns:
+            df_meta["alt_description"] = ""
+        df_meta["alt_description"] = df_meta["alt_description"].fillna("")
+        df_meta["text"] = (
+            df_meta["alt_description"].astype(str)
+            + " "
+            + df_meta["tags"].apply(lambda lst: " ".join([str(t) for t in lst]))
+        ).str.lower()
+        df_meta = df_meta.reset_index(drop=True)
+
+        path_to_idx: Dict[Path, int] = {}
+        for idx, row in df_meta.iterrows():
+            lp = _row_local_path(row)
+            if not lp:
+                continue
+            try:
+                path_to_idx[Path(lp).resolve()] = idx
+            except Exception:
+                path_to_idx[Path(lp)] = idx
+        deck_indices: List[int] = []
+        for path in deck:
+            try:
+                resolved = path.resolve()
+            except Exception:
+                resolved = path
+            idx = path_to_idx.get(resolved)
+            if idx is None:
+                for cand_path, cand_idx in path_to_idx.items():
+                    if cand_path.name == path.name:
+                        idx = cand_idx
+                        break
+            if idx is not None:
+                deck_indices.append(idx)
+        if deck_indices:
+            seen_idx: Set[int] = set()
+            leaf_ids: List[int] = []
+            for idx in deck_indices:
+                if idx not in seen_idx:
+                    leaf_ids.append(idx)
+                    seen_idx.add(idx)
+        else:
+            leaf_ids = list(range(len(df_meta)))
+
+        if not leaf_ids:
+            st.info("No images available after filtering.")
+            st.stop()
+
+        key_path = "img_meta_path"
+        key_tree = "img_tree"
+        key_bits = "img_path_bits"
+        key_emb = "img_embeddings"
+        key_sig = "img_deck_sig"
+        key_leaf = "img_leaf_ids"
+        key_meta_len = "img_meta_len"
+        key_text_sig = "img_text_sig"
+        text_sig = (
+            hashlib.md5("||".join(df_meta["text"].astype(str).tolist()).encode("utf-8")).hexdigest()
+            if len(df_meta) else ""
+        )
+        stored_leaf_ids = tuple(st.session_state.get(key_leaf, ()))
+        needs_refresh = (
+            st.session_state.get(key_path) != meta_path
+            or st.session_state.get(key_sig) != deck_sig
+            or st.session_state.get(key_meta_len) != len(df_meta)
+            or st.session_state.get(key_text_sig) != text_sig
+            or stored_leaf_ids != tuple(leaf_ids)
+        )
+        if needs_refresh:
             st.session_state[key_path] = meta_path
+            st.session_state[key_sig] = deck_sig
+            st.session_state[key_meta_len] = len(df_meta)
+            st.session_state[key_text_sig] = text_sig
             st.session_state[key_bits] = []
             emb = embed_texts(df_meta["text"].tolist())
             st.session_state[key_emb] = emb
             st.session_state.setdefault("img_seed", 0)
-            st.session_state[key_tree] = build_greedy_tree(list(range(len(df_meta))), emb, seed=st.session_state["img_seed"])
+            st.session_state[key_tree] = build_greedy_tree(leaf_ids, emb, seed=st.session_state["img_seed"])
+            st.session_state[key_leaf] = tuple(leaf_ids)
+        else:
+            st.session_state[key_leaf] = tuple(leaf_ids)
+
         bits = st.session_state.get(key_bits, [])
         tree = st.session_state.get(key_tree)
         emb = st.session_state.get(key_emb)
+        if tree is None:
+            st.info("No image tree available.")
+            st.stop()
         try:
             node_img = walk_tree(tree, bits)
         except Exception:
@@ -1514,7 +1726,8 @@ with tabs[0]:
                     if st.button("Neither match", key="img_neither"):
                         st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
                         emb = st.session_state.get(key_emb)
-                        st.session_state[key_tree] = build_greedy_tree(list(range(len(df_meta))), emb, seed=st.session_state["img_seed"])
+                        current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
+                        st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
                         st.rerun()
             except Exception:
                 # Fallback to buttons if component not available
@@ -1536,7 +1749,8 @@ with tabs[0]:
                     if st.button("Neither match", key="img_neither_btn"):
                         st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
                         emb = st.session_state.get(key_emb)
-                        st.session_state[key_tree] = build_greedy_tree(list(range(len(df_meta))), emb, seed=st.session_state["img_seed"])
+                        current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
+                        st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
                         st.rerun()
         else:
             leaf_idx = node_img
