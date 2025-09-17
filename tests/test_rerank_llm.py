@@ -28,3 +28,20 @@ def test_choose_final_best_selects_highest_score():
     ]
     best = choose_final_best(results)
     assert best == {"best_sku": "b", "why": "Matches cosy in budget"}
+
+
+def test_out_of_budget_penalty_is_at_least_point15():
+    gifts = [
+        Gift("mid", "Cozy Throw", 80.0, ("cozy",), meta={}),
+        Gift("out", "Premium Throw", 140.0, ("cozy",), meta={}),
+    ]
+    results = heuristic_rerank(
+        gifts,
+        taste_top_tags=["cozy"],
+        budget=(30.0, 60.0),
+        age_soft_prior=[],
+        keep_top=2,
+    )
+    scores = {r.sku: r.score for r in results}
+    base_score = 0.45 + 0.4  # overlap ratio = 1.0
+    assert base_score - scores.get("out", base_score) >= 0.15
