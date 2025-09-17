@@ -2,6 +2,7 @@ import os
 import json
 import uuid
 import re
+import html
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
@@ -367,6 +368,29 @@ def node_size(node: Any) -> int:
     if isinstance(node, dict):
         return node_size(node.get("left")) + node_size(node.get("right"))
     return 1
+
+
+def collect_selected_indices(tree: Any, bits: List[int]) -> List[int]:
+    selected: List[int] = []
+    node = tree
+    for b in bits:
+        if not isinstance(node, dict):
+            break
+        pair = node.get("pair_idx") or (None, None)
+        if pair[0] is None or pair[1] is None:
+            break
+        chosen = pair[0] if b == 0 else pair[1]
+        selected.append(chosen)
+        node = node["left"] if b == 0 else node["right"]
+    if isinstance(node, int):
+        selected.append(node)
+    seen: set[int] = set()
+    ordered: List[int] = []
+    for idx in selected:
+        if idx not in seen:
+            ordered.append(idx)
+            seen.add(idx)
+    return ordered
 
 
 def file_to_data_uri(path: str) -> Optional[str]:
@@ -1092,12 +1116,10 @@ with st.sidebar:
 # Global controls above recipient selection
 st.subheader("Match Controls")
 match_type = st.radio("Match type", options=["Constructor", "Powered-up"], horizontal=True, index=1)
+gifts_opt = st.slider("Number of gifts", min_value=1, max_value=5, value=3)
+queries_opt = 1
 if match_type == "Powered-up":
-    queries_opt = st.slider("Power", min_value=1, max_value=5, value=3)
-    st.caption("Power levels: 1=Minimal, 2=Low, 3=Medium, 4=High, 5=Substantial")
-else:
-    queries_opt = 1
-gifts_opt = st.selectbox("Number of gifts", options=[1,2,3,4,5], index=2)
+    queries_opt = st.slider("Queries", min_value=1, max_value=5, value=3)
 
 tabs = st.tabs(["Images", "Quiz", "URLs"])
 
@@ -1364,14 +1386,28 @@ with tabs[0]:
                 if os.path.exists(p):
                     return p
             return None
-        def _render_image(r):
+        def _show_image_box(src: str, alt_text: str = "", height: int = 240) -> None:
+            safe_alt = html.escape(alt_text or "")
+            st.markdown(
+                f"""
+                <div style="width: 100%; height: {height}px; overflow: hidden; border-radius: 12px; border: 1px solid #ddd;">
+                    <img src="{src}" alt="{safe_alt}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        def _render_image(r, height: int = 240):
+            alt_text = str(r.get("alt_description") or "")
             lp = _row_local_path(r)
             if lp:
-                st.image(lp, use_container_width=True)
-                return True
+                uri = file_to_data_uri(lp)
+                if uri:
+                    _show_image_box(uri, alt_text, height=height)
+                    return True
             pid = _row_pid(r)
             if pid:
-                st.image(f"https://source.unsplash.com/{pid}/600x400", use_container_width=True)
+                _show_image_box(f"https://source.unsplash.com/{pid}/600x400", alt_text, height=height)
                 return True
             return False
 
@@ -1414,12 +1450,12 @@ with tabs[0]:
         except Exception:
             st.session_state[key_bits] = []
             node_img = walk_tree(tree, [])
-        st.caption(f"Remaining candidates: {node_size(node_img) if isinstance(node_img, dict) else 1}")
         if isinstance(node_img, dict):
             i, j = node_img["pair_idx"]
             left_row = df_meta.iloc[i]
             right_row = df_meta.iloc[j]
             # Clickable images
+            st.markdown("### Which vibe matches?")
             try:
                 from clickable_images import clickable_images  # type: ignore
                 # Build sources (prefer local)
@@ -1437,9 +1473,25 @@ with tabs[0]:
                     else:
                         pid = r.get("photo_id") or r.get("id") or ""
                         srcs.append(f"https://source.unsplash.com/{pid}/600x400")
-                    titles.append(r.get("alt_description") or "")
-                st.markdown("### Which vibe matches?")
-                clicked = clickable_images(srcs, titles=titles, div_style={"display": "flex", "justify-content": "space-between", "align-items": "center"}, img_style={"max-width": "48%", "height": "auto", "border-radius": "8px", "border": "1px solid #ddd"})
+                    titles.append("")
+                clicked = clickable_images(
+                    srcs,
+                    titles=titles,
+                    div_style={
+                        "display": "flex",
+                        "justify-content": "space-between",
+                        "gap": "1rem",
+                        "align-items": "stretch",
+                    },
+                    img_style={
+                        "width": "100%",
+                        "height": "240px",
+                        "object-fit": "cover",
+                        "border-radius": "12px",
+                        "border": "1px solid #ddd",
+                        "box-shadow": "0 2px 8px rgba(0,0,0,0.05)",
+                    },
+                )
                 if clicked == 0:
                     st.session_state[key_bits].append(0)
                     st.rerun()
@@ -1458,7 +1510,6 @@ with tabs[0]:
                 # Fallback to buttons if component not available
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.markdown("### Which vibe matches?")
                     if not _render_image(left_row):
                         st.write("No image available")
                     if st.button("This matches", key="img_left_btn"):
@@ -1487,46 +1538,33 @@ with tabs[0]:
                     st.session_state[key_bits] = []
                     st.rerun()
             else:
-                st.success("Image vibe selected")
-                if not _render_image(leaf):
-                    st.write("No image available")
+                selected_indices = collect_selected_indices(tree, bits)
+                if not selected_indices:
+                    selected_indices = [leaf_idx]
+                cols_per_row = 3
+                for start in range(0, len(selected_indices), cols_per_row):
+                    row_cols = st.columns(min(cols_per_row, len(selected_indices) - start))
+                    for offset, col in enumerate(row_cols):
+                        with col:
+                            img_idx = selected_indices[start + offset]
+                            try:
+                                img_row = df_meta.iloc[img_idx]
+                            except Exception:
+                                st.write("No image available")
+                                continue
+                            if not _render_image(img_row):
+                                st.write("No image available")
                 tags = leaf.get("tags", [])
                 if not isinstance(tags, list):
                     tags = []
-                tag_text = ", ".join([str(t) for t in tags][:6])
                 alt_text = str(leaf.get("alt_description") or "")
-                # If LLM is enabled, derive a short shopping phrase from the entire dataset; else derive from this image meta
                 concept_llm = openrouter_summarise_dataset(df_meta) or openrouter_summarise_phrase(alt_text, tags)
                 pid = leaf.get("photo_id") or leaf.get("id")
                 concept = concept_llm or concept_from_meta(alt_text, tags, pid)
-                st.write(f"Concept: {concept}")
 
-                # Vibe summary
-                with st.expander("Vibe summary"):
-                    cols = st.columns(2)
-                    with cols[0]:
-                        st.write(f"Photo ID: {pid or '-'}")
-                        st.write(f"Filename: {leaf.get('filename') or '-'}")
-                        st.write(f"Photographer: {leaf.get('photographer') or '-'}")
-                        size = None
-                        try:
-                            w = leaf.get('width'); h = leaf.get('height')
-                            if w and h:
-                                size = f"{w}×{h}"
-                        except Exception:
-                            size = None
-                        st.write(f"Size: {size or '-'}")
-                    with cols[1]:
-                        st.write(f"Alt: {(alt_text[:160] + '…') if len(alt_text) > 160 else (alt_text or '-')} ")
-                        st.write(f"Tags: {tag_text or '-'}")
-                        if concept_llm:
-                            st.write(f"LLM phrase: {concept_llm}")
-                        st.write(f"Final concept: {concept}")
-
-                # Categories + NL preview
                 include_cats_prev = interest_to_categories(concept or "", restrict_to_whitelist=True)
                 q_preview = build_query_text("", None, None, concept or "", None, None)
-                with st.expander("Query & URL preview"):
+                with st.expander("Query & URL preview", expanded=True):
                     st.write(f"Categories: {', '.join(include_cats_prev) or '-'}")
                     st.write(f"NL query: {q_preview}")
                     if api_key:
@@ -1535,22 +1573,6 @@ with tabs[0]:
                             st.code(url_prev)
                         except Exception:
                             pass
-
-                # Dataset summary
-                def _row_has_local(r):
-                    return _row_local_path(r) is not None
-                if hasattr(df_meta, 'iterrows'):
-                    total = len(df_meta)
-                    with_id = sum(1 for _, r in df_meta.iterrows() if r.get('photo_id') or r.get('id'))
-                    with_alt = sum(1 for _, r in df_meta.iterrows() if str(r.get('alt_description') or '').strip())
-                    with_tags_cnt = sum(1 for _, r in df_meta.iterrows() if isinstance(r.get('tags'), list) and len(r.get('tags')) > 0)
-                    with_local = sum(1 for _, r in df_meta.iterrows() if _row_has_local(r))
-                    with st.expander("Dataset summary"):
-                        st.write(f"Total images: {total}")
-                        st.write(f"With IDs: {with_id}")
-                        st.write(f"With alt descriptions: {with_alt}")
-                        st.write(f"With tags: {with_tags_cnt}")
-                        st.write(f"Local files found: {with_local}")
                 if st.button("Find products", key="img_go"):
                     include_cats = interest_to_categories(concept or "", restrict_to_whitelist=True)
                     q_base_img = build_query_text("", None, None, concept or "", None, None)
