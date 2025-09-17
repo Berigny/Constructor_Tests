@@ -6,3 +6,4 @@ streamlit
 scikit-learn
 openai
 streamlit-clickable-images
+numpy
