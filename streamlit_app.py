@@ -1342,8 +1342,8 @@ with tabs[2]:
         st.session_state["last_label"] = "URLs"
 
 with tabs[0]:
-    st.subheader("Find Vibe with images")
-    meta_path = st.text_input("Metadata path", value=os.path.join("unsplash_images", "metadata.json"))
+    # Images vibe picker (simplified UI)
+    meta_path = os.path.join("unsplash_images", "metadata.json")
     df_meta = load_meta_df(meta_path)
     if df_meta is None or (hasattr(df_meta, 'empty') and df_meta.empty):
         st.info("Provide a valid metadata.json from Unsplash downloads.")
@@ -1367,11 +1367,11 @@ with tabs[0]:
         def _render_image(r):
             lp = _row_local_path(r)
             if lp:
-                st.image(lp, use_container_width=True, caption=r.get("alt_description") or "")
+                st.image(lp, use_container_width=True)
                 return True
             pid = _row_pid(r)
             if pid:
-                st.image(f"https://source.unsplash.com/{pid}/600x400", use_container_width=True, caption=r.get("alt_description") or "")
+                st.image(f"https://source.unsplash.com/{pid}/600x400", use_container_width=True)
                 return True
             return False
 
