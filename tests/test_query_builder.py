@@ -72,11 +72,26 @@ def test_category_fallback_when_tokens_sparse(tmp_path):
     manifest_path = write_manifest(tmp_path, manifest)
 
     qb = QueryBuilder(str(manifest_path))
+    query, _ = qb.compose(["outdoor", "kids", "retro", "women"])
+
+    assert query == "outdoor retro"
+
+
+def test_category_fallback_when_tokens_sparse(tmp_path):
+    manifest = {
+        "allowed_tokens": ["outdoor"],
+        "forbidden_tokens": [],
+        "synonyms": {},
+        "tag_to_categories": {"outdoor": ["Travel", "Outdoors"]},
+        "query_rules": {"min_tokens": 2, "max_tokens": 6},
+    }
+    manifest_path = write_manifest(tmp_path, manifest)
+
+    qb = QueryBuilder(str(manifest_path))
     query, categories = qb.compose(["outdoor"])
 
     assert query == "Outdoors Travel"
     assert categories == ["Outdoors", "Travel"]
-
 
 def test_compose_with_debug_reports_dropped(tmp_path):
     manifest = {
