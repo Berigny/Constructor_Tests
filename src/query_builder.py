@@ -46,7 +46,7 @@ class QueryBuilder:
 
     def compose(
         self, photo_tags: List[str], budget: Tuple[int, int] | None = None
-    ) -> Tuple[str, List[str]]:
+    ) -> Tuple[str | None, List[str]]:
         """
         Compose a safe NL query and category list.
 
@@ -55,7 +55,7 @@ class QueryBuilder:
             budget: optional (low, high) tuple in AUD
 
         Returns:
-            query (str), categories (list[str])
+            query (str | None), categories (list[str])
         """
 
         tokens: List[str] = []
@@ -72,8 +72,18 @@ class QueryBuilder:
         min_tokens = self.rules.get("min_tokens", 2)
         tokens = tokens[:max_tokens]
 
+        categories = sorted(
+            {
+                category
+                for token in tokens
+                for category in self.tag_to_categories.get(token, [])
+            }
+        )
+
         if len(tokens) < min_tokens:
-            return "gift ideas", []
+            if categories:
+                return " ".join(categories), categories
+            return None, []
 
         # Build query string
         query = " ".join(tokens) + " gift ideas"
@@ -84,8 +94,4 @@ class QueryBuilder:
             query += f" under {hi} AUD"
 
         # Map to Constructor categories
-        categories = sorted(
-            {category for token in tokens for category in self.tag_to_categories.get(token, [])}
-        )
-
         return query, categories
