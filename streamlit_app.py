@@ -1474,6 +1474,7 @@ with tabs[0]:
                         pid = r.get("photo_id") or r.get("id") or ""
                         srcs.append(f"https://source.unsplash.com/{pid}/600x400")
                     titles.append("")
+
                 clicked = clickable_images(
                     srcs,
                     titles=titles,
