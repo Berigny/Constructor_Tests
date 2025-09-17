@@ -19,8 +19,8 @@ import random
 import streamlit as st
 
 from src.image_loader import SUPPORTED, discover_images
+from src.query_builder import QueryBuilder
 from src.query_composer import (
-    compose_query_from_tags,
     sanitize_query,
     top_tags_from_rows,
 )
@@ -47,6 +47,27 @@ def _load_env_from_file(path: str) -> None:
 
 _load_env_from_file(".env.local")
 _load_env_from_file(".env")
+
+
+# ----------------------- Query builder cache -----------------------
+_QUERY_BUILDER: Optional[QueryBuilder] = None
+_QUERY_BUILDER_MTIME: Optional[float] = None
+
+
+def get_query_builder(manifest_path: str = "queries_manifest.json") -> QueryBuilder:
+    """Return a cached ``QueryBuilder``, reloading if the manifest changes."""
+
+    global _QUERY_BUILDER, _QUERY_BUILDER_MTIME
+    path = Path(manifest_path)
+    mtime: Optional[float] = None
+    try:
+        mtime = path.stat().st_mtime
+    except FileNotFoundError:
+        pass
+    if _QUERY_BUILDER is None or _QUERY_BUILDER_MTIME != mtime:
+        _QUERY_BUILDER = QueryBuilder(manifest_path)
+        _QUERY_BUILDER_MTIME = mtime
+    return _QUERY_BUILDER
 
 
 # ----------------------- Quiz loading -----------------------
@@ -1790,22 +1811,36 @@ with tabs[0]:
                 if not taste_top and isinstance(tags, list):
                     taste_top = [str(t) for t in tags if str(t).strip()]
 
-                plan = compose_query_from_tags(taste_top)
-                include_cats_prev = list(plan.categories)
-                q_preview = plan.query
+                qb = get_query_builder()
+                q_preview, include_cats_prev, debug = qb.compose_with_debug(taste_top)
+                raw_tags_dbg = debug.get("raw_tags", taste_top)
+                filtered_tokens = debug.get("filtered_tokens", [])
+                dropped_forbidden = debug.get("dropped_forbidden", [])
+                dropped_not_allowed = debug.get("dropped_not_allowed", [])
                 with st.expander("Query & URL preview", expanded=True):
-                    st.write(f"Taste tags: {', '.join(taste_top) or '-'}")
-                    st.write(f"Query tokens: {', '.join(plan.tokens) or '-'}")
+                    st.write(f"Raw tags: {', '.join(raw_tags_dbg) or '-'}")
+                    st.write(f"Filtered tokens: {', '.join(filtered_tokens) or '-'}")
+                    st.write(f"Dropped (forbidden): {', '.join(dropped_forbidden) or '-'}")
+                    st.write(f"Dropped (not allowed): {', '.join(dropped_not_allowed) or '-'}")
                     st.write(f"Categories: {', '.join(include_cats_prev) or '-'}")
-                    st.write(f"NL query: {q_preview}")
-                    if api_key:
+                    if q_preview:
+                        st.write(f"NL query: {q_preview}")
+                    else:
+                        st.write("NL query: — (embedding-only fallback)")
+                    if api_key and q_preview:
                         try:
                             url_prev = make_url(base_url, q_preview, api_key, None, include_cats_prev, per_page=per_page, page=1)
                             st.code(url_prev)
                         except Exception:
                             pass
                 if st.button("Find products", key="img_go"):
-                    run_product_search(plan.query, list(plan.categories), None, None, label="Images")
+                    if q_preview:
+                        run_product_search(q_preview, list(include_cats_prev), None, None, label="Images")
+                    else:
+                        st.warning(
+                            "No safe natural-language query could be constructed from the selected tags. "
+                            "Adjust your selection or use embedding-only retrieval."
+                        )
 
 if False:
     pass  # placeholder removed old inline search block
