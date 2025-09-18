@@ -20,6 +20,7 @@ import streamlit as st
 
 from src.image_loader import SUPPORTED, discover_images
 from src.query_builder import QueryBuilder
+from src.query_interpreter import QueryInterpreter
 from src.query_composer import (
     sanitize_query,
     top_tags_from_rows,
@@ -52,6 +53,8 @@ _load_env_from_file(".env")
 # ----------------------- Query builder cache -----------------------
 _QUERY_BUILDER: Optional[QueryBuilder] = None
 _QUERY_BUILDER_MTIME: Optional[float] = None
+_QUERY_INTERPRETER: Optional[QueryInterpreter] = None
+_QUERY_INTERPRETER_SIGNATURE: Optional[Tuple[Optional[float], Optional[float]]] = None
 
 
 def get_query_builder(manifest_path: str = "queries_manifest.json") -> QueryBuilder:
@@ -68,6 +71,66 @@ def get_query_builder(manifest_path: str = "queries_manifest.json") -> QueryBuil
         _QUERY_BUILDER = QueryBuilder(manifest_path)
         _QUERY_BUILDER_MTIME = mtime
     return _QUERY_BUILDER
+
+
+def get_query_interpreter(
+    manifest_path: str = "queries_manifest.json",
+    metadata_path: str = "unsplash_images/metadata.json",
+) -> QueryInterpreter:
+    """Return a cached ``QueryInterpreter`` with simple file-change detection."""
+
+    global _QUERY_INTERPRETER, _QUERY_INTERPRETER_SIGNATURE
+    manifest_mtime: Optional[float] = None
+    metadata_mtime: Optional[float] = None
+    try:
+        manifest_mtime = Path(manifest_path).stat().st_mtime
+    except FileNotFoundError:
+        manifest_mtime = None
+    try:
+        metadata_mtime = Path(metadata_path).stat().st_mtime
+    except FileNotFoundError:
+        metadata_mtime = None
+
+    signature = (manifest_mtime, metadata_mtime)
+    if _QUERY_INTERPRETER is None or _QUERY_INTERPRETER_SIGNATURE != signature:
+        _QUERY_INTERPRETER = QueryInterpreter(
+            manifest_path=manifest_path,
+            metadata_path=metadata_path,
+        )
+        _QUERY_INTERPRETER_SIGNATURE = signature
+    return _QUERY_INTERPRETER
+
+
+RECIPIENT_OPTIONS = ["Me", "Woman", "Man", "Teen", "Kid", "Couple", "Family"]
+RECIPIENT_CANON = {opt: opt.lower() for opt in RECIPIENT_OPTIONS}
+RECIPIENT_CANON["Me"] = "me"
+
+PALETTE_OPTIONS = ["Black", "Blue", "Natural", "Warm", "Neon"]
+PALETTE_CANON = {
+    "Black": "black",
+    "Blue": "blue",
+    "Natural": "natural",
+    "Warm": "warm",
+    "Neon": "neon",
+}
+
+STYLE_OPTIONS = ["Casual", "Minimalist", "90s Retro", "Practical", "Premium"]
+STYLE_CANON = {
+    "Casual": ["casual"],
+    "Minimalist": ["minimalist"],
+    "90s Retro": ["retro", "90s"],
+    "Practical": ["practical"],
+    "Premium": ["premium"],
+}
+
+COHORT_OPTIONS = ["Auto", "Gen Z", "Millennial", "Gen X", "Boomer"]
+COHORT_CANON = {
+    "Auto": None,
+    "Gen Z": "Gen Z",
+    "Millennial": "Millennial",
+    "Gen X": "Gen X",
+    "Boomer": "Boomer",
+}
 
 
 # ----------------------- Quiz loading -----------------------
@@ -1811,36 +1874,149 @@ with tabs[0]:
                 if not taste_top and isinstance(tags, list):
                     taste_top = [str(t) for t in tags if str(t).strip()]
 
+                st.markdown("#### Recipient & Style")
+                hint_cols = st.columns([1.4, 1.2, 1.3, 1.3])
+                with hint_cols[0]:
+                    recipient_choice = st.radio(
+                        "Recipient",
+                        options=RECIPIENT_OPTIONS,
+                        index=0,
+                        horizontal=True,
+                        key="img_recipient_chip",
+                    )
+                with hint_cols[1]:
+                    palette_choice = st.multiselect(
+                        "Palette",
+                        options=PALETTE_OPTIONS,
+                        default=[],
+                        key="img_palette_chip",
+                    )
+                with hint_cols[2]:
+                    style_choice = st.multiselect(
+                        "Style",
+                        options=STYLE_OPTIONS,
+                        default=[],
+                        key="img_style_chip",
+                    )
+                with hint_cols[3]:
+                    apply_budget = st.checkbox("Budget cap", value=True, key="img_budget_cap")
+                    budget_value: Optional[int] = None
+                    if apply_budget:
+                        budget_value = st.slider(
+                            "Max budget ($)",
+                            min_value=20,
+                            max_value=300,
+                            value=100,
+                            step=5,
+                            key="img_budget_slider",
+                        )
+                    cohort_choice = st.selectbox(
+                        "Cohort (optional)",
+                        options=COHORT_OPTIONS,
+                        index=0,
+                        key="img_cohort_select",
+                    )
+
                 qb = get_query_builder()
                 q_preview, include_cats_prev, debug = qb.compose_with_debug(taste_top)
                 raw_tags_dbg = debug.get("raw_tags", taste_top)
                 filtered_tokens = debug.get("filtered_tokens", [])
                 dropped_forbidden = debug.get("dropped_forbidden", [])
                 dropped_not_allowed = debug.get("dropped_not_allowed", [])
+
+                recipient_hint = RECIPIENT_CANON.get(recipient_choice, "me")
+                palette_hints = [
+                    PALETTE_CANON.get(opt, opt.lower()) for opt in palette_choice
+                ]
+                palette_hints = [p for p in palette_hints if p]
+                if palette_hints:
+                    palette_hints = list(dict.fromkeys(palette_hints))
+                style_hints: List[str] = []
+                for opt in style_choice:
+                    style_hints.extend(STYLE_CANON.get(opt, [opt.lower()]))
+                if style_hints:
+                    style_hints = list(dict.fromkeys(style_hints))
+                cohort_hint = COHORT_CANON.get(cohort_choice)
+                budget_tuple: Optional[Tuple[int, int]] = None
+                budget_hi: Optional[int] = None
+                if budget_value is not None:
+                    budget_hi = int(budget_value)
+                    budget_tuple = (0, budget_hi)
+
+                interpreter = get_query_interpreter()
+                photo_ids: List[str] = []
+                for row in selected_rows:
+                    pid = row.get("photo_id") or row.get("id")
+                    if not pid:
+                        continue
+                    text_pid = str(pid).strip()
+                    if text_pid and text_pid not in photo_ids:
+                        photo_ids.append(text_pid)
+
+                interpreter_result = interpreter.interpret(
+                    tokens=filtered_tokens,
+                    categories=list(include_cats_prev),
+                    photo_ids=photo_ids,
+                    budget_aud=budget_tuple,
+                    use_llm=False,
+                    ui_recipient=recipient_hint,
+                    ui_colours=palette_hints,
+                    ui_styles=style_hints,
+                    ui_cohort=cohort_hint,
+                )
+
+                expanded_categories = interpreter_result.get("categories", include_cats_prev) or []
+                queries_multi = interpreter_result.get("queries_multi", [])
+                legacy_query = interpreter_result.get("query_no_llm", q_preview)
+
                 with st.expander("Query & URL preview", expanded=True):
                     st.write(f"Raw tags: {', '.join(raw_tags_dbg) or '-'}")
                     st.write(f"Filtered tokens: {', '.join(filtered_tokens) or '-'}")
                     st.write(f"Dropped (forbidden): {', '.join(dropped_forbidden) or '-'}")
                     st.write(f"Dropped (not allowed): {', '.join(dropped_not_allowed) or '-'}")
-                    st.write(f"Categories: {', '.join(include_cats_prev) or '-'}")
-                    if q_preview:
-                        st.write(f"NL query: {q_preview}")
+                    st.write(f"Categories: {', '.join(expanded_categories) or '-'}")
+                    if legacy_query:
+                        st.write(f"Legacy NL query: {legacy_query}")
                     else:
-                        st.write("NL query: — (embedding-only fallback)")
-                    if api_key and q_preview:
-                        try:
-                            url_prev = make_url(base_url, q_preview, api_key, None, include_cats_prev, per_page=per_page, page=1)
-                            st.code(url_prev)
-                        except Exception:
-                            pass
-                if st.button("Find products", key="img_go"):
-                    if q_preview:
-                        run_product_search(q_preview, list(include_cats_prev), None, None, label="Images")
+                        st.write("Legacy NL query: —")
+                    if queries_multi:
+                        st.markdown("**Query plan**")
+                        for idx_q, (bucket, query_text) in enumerate(queries_multi, start=1):
+                            st.write(f"{bucket}: {query_text}")
+                            bucket_cats = [
+                                c for c in expanded_categories if bucket.lower() in c.lower()
+                            ]
+                            if not bucket_cats:
+                                bucket_cats = list(expanded_categories)
+                            if bucket not in bucket_cats and bucket:
+                                bucket_cats.append(bucket)
+                            bucket_cats = [c for c in dict.fromkeys(bucket_cats) if c]
+                            if api_key:
+                                try:
+                                    pf = price_filter_value(None, budget_hi)
+                                    url_prev = make_url(
+                                        base_url,
+                                        query_text,
+                                        api_key,
+                                        pf,
+                                        bucket_cats,
+                                        per_page=per_page,
+                                        page=1,
+                                    )
+                                    st.code(url_prev)
+                                except Exception:
+                                    pass
+                            button_key = f"img_go_{leaf_idx}_{bucket}_{idx_q}"
+                            if st.button(f"Find products ({bucket})", key=button_key):
+                                run_product_search(
+                                    query_text,
+                                    bucket_cats,
+                                    None,
+                                    budget_hi,
+                                    label=f"Images · {bucket}",
+                                )
                     else:
-                        st.warning(
-                            "No safe natural-language query could be constructed from the selected tags. "
-                            "Adjust your selection or use embedding-only retrieval."
-                        )
+                        st.info("No multi-bucket queries generated yet. Adjust your selections to continue.")
 
 if False:
     pass  # placeholder removed old inline search block
