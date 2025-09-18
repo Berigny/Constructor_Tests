@@ -6,7 +6,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, Literal
 
 DEFAULT_METADATA_PATH = "unsplash_images/metadata.json"
 DEFAULT_MANIFEST_PATH = "queries_manifest.json"
@@ -99,6 +99,156 @@ CATEGORY_TO_DEFAULT_TERMS: Dict[str, List[str]] = {
     "Sports": ["yoga mat", "microfibre towel", "sports bottle"],
     "Travel": ["packing cubes", "weekender bag", "passport wallet"],
 }
+
+
+# --- New: multi-query composer with user hints -------------------------------
+
+Bucket = Literal["Fashion", "Books", "Tech", "Outdoors", "Home", "Entertainment"]
+
+
+class Hints(TypedDict, total=False):
+    recipient: str  # "me","man","woman","teen","kid","couple","family"
+    colours: List[str]
+    styles: List[str]  # ["casual","minimalist","retro","90s","practical","premium"]
+    budget_aud: Tuple[int | None, int | None]
+    cohort: str  # e.g., "Gen X"
+
+
+BUCKET_TEMPLATES: Dict[Bucket, str] = {
+    "Fashion": "{styles} {palette} clothes {recipient_phrase} {cohort_twist} under {hi}",
+    "Books": "books and ideas on {themes} {recipient_phrase} under {hi}",
+    "Tech": "tech and gadgets {style_practical} {recipient_phrase} under {hi}",
+    "Outdoors": "{palette} outdoor gear and apparel {recipient_phrase} under {hi}",
+    "Home": "{palette} home items {style_practical} {recipient_phrase} under {hi}",
+}
+
+STYLE_PHRASES = {
+    "casual": "casual",
+    "minimalist": "plain",
+    "practical": "practical",
+    "retro": "retro",
+    "90s": "90s twist",
+    "premium": "premium",
+}
+
+COHORT_PHRASE = {
+    "Gen Z": "with a Gen Z vibe",
+    "Millennial": "with Millennial nostalgia",
+    "Gen X": "with Gen X sensibility",
+    "Boomer": "classic",
+}
+
+PALETTE_CANON = {
+    "black": "black",
+    "blue": "blue",
+    "neutral": "neutral",
+    "natural": "earthy",
+    "earthy": "earthy",
+    "warm": "warm",
+    "neon": "neon",
+}
+
+
+def _recipient_phrase(h: Hints) -> str:
+    rec = (h.get("recipient") or "me").lower()
+    return {
+        "me": "for me",
+        "man": "for men",
+        "woman": "for women",
+        "teen": "for teens",
+        "kid": "for kids",
+        "couple": "for couples",
+        "family": "for families",
+    }.get(rec, "for me")
+
+
+def _palette_phrase(colours: Optional[List[str]]) -> str:
+    if not colours:
+        return ""
+    mapped = []
+    for colour in colours:
+        if not colour:
+            continue
+        canon = PALETTE_CANON.get(colour.lower())
+        if canon:
+            mapped.append(canon)
+    seen: set[str] = set()
+    keep = [c for c in mapped if not (c in seen or seen.add(c))]
+    if not keep:
+        return ""
+    return "in " + " and ".join(keep)
+
+
+def _styles_phrase(styles: Optional[List[str]]) -> Tuple[str, str]:
+    if not styles:
+        return "", ""
+    mapped = [STYLE_PHRASES.get(s.lower(), s.lower()) for s in styles]
+    style_str = " ".join(sorted(set(mapped)))
+    practical = ""
+    if "practical" in mapped:
+        practical = "that are practical"
+    elif "plain" in mapped:
+        practical = "that are plain and practical"
+    return style_str, practical
+
+
+def _themes_from_tokens(tokens: List[str]) -> str:
+    keep = [t for t in tokens if t in {"philosophy", "art", "tech", "nature", "design"}]
+    return " and ".join(keep) if keep else "philosophy and tech"
+
+
+def compose_queries_multi(
+    tokens: List[str],
+    categories: List[str],
+    hints: Hints,
+    cohort_hint: Optional[str] = None,
+) -> List[Tuple[Bucket, str]]:
+    _lo, hi = hints.get("budget_aud") or (None, None)
+    recipient = _recipient_phrase(hints)
+    palette = _palette_phrase(hints.get("colours"))
+    styles, style_practical = _styles_phrase(hints.get("styles"))
+    cohort = cohort_hint or hints.get("cohort")
+    cohort_twist = COHORT_PHRASE.get(cohort or "", "").strip()
+
+    buckets: List[Bucket] = []
+    if "Fashion" in categories or any(t in tokens for t in ("casual", "retro", "90s", "minimalist")):
+        buckets.append("Fashion")
+    if "Books" in categories or any(t in tokens for t in ("book", "philosophy", "art", "tech", "design")):
+        buckets.append("Books")
+    if "Tech" in categories or "tech" in tokens:
+        buckets.append("Tech")
+    if "Outdoors" in categories or any(
+        t in tokens for t in ("outdoor", "nature", "hiking", "camping", "summer", "sun", "beach")
+    ):
+        buckets.append("Outdoors")
+    if "Home" in categories or "window" in tokens:
+        buckets.append("Home")
+    seen: set[str] = set()
+    buckets = [b for b in buckets if not (b in seen or seen.add(b))][:5]
+    if not buckets:
+        buckets = ["Tech", "Books"]
+
+    themes = _themes_from_tokens(tokens)
+    if isinstance(hi, (int, float)) and hi:
+        budget_phrase = f"${int(hi)}"
+    else:
+        budget_phrase = "$100"
+
+    out: List[Tuple[Bucket, str]] = []
+    for bucket in buckets:
+        template = BUCKET_TEMPLATES[bucket]
+        query = template.format(
+            styles=styles or "casual",
+            palette=palette,
+            recipient_phrase=recipient,
+            cohort_twist=f"{cohort_twist}" if cohort_twist else "",
+            style_practical=style_practical or "that are plain and practical",
+            themes=themes,
+            hi=budget_phrase,
+        )
+        query = " ".join(query.split())
+        out.append((bucket, query))
+    return out
 
 
 def _read_json(path: Path) -> Any:
@@ -347,6 +497,10 @@ class QueryInterpreter:
         budget_aud: Optional[Tuple[int, int]] = None,
         use_llm: bool = True,
         max_terms: int = 12,
+        ui_recipient: Optional[str] = None,
+        ui_colours: Optional[List[str]] = None,
+        ui_styles: Optional[List[str]] = None,
+        ui_cohort: Optional[str] = None,
     ) -> Dict[str, Any]:
         filtered_tokens = _normalise_tokens(tokens)
         expanded_categories = _expand_categories(
@@ -371,7 +525,46 @@ class QueryInterpreter:
         if cohort:
             allowed_terms.append(cohort)
         query_llm = _llm_rewrite(allowed_terms, cohort, budget_aud) if use_llm else None
-        final_query = query_llm or query_no_llm
+
+        hints: Hints = {}
+        if ui_recipient:
+            hints["recipient"] = ui_recipient
+        if ui_colours:
+            colour_list = [c for c in ui_colours if c]
+            if colour_list:
+                colour_list = list(dict.fromkeys(colour_list))
+            if colour_list:
+                hints["colours"] = colour_list
+        if ui_styles:
+            style_list = [s for s in ui_styles if s]
+            if style_list:
+                style_list = list(dict.fromkeys(style_list))
+            if style_list:
+                hints["styles"] = style_list
+        if budget_aud:
+            lo, hi = budget_aud
+            hints["budget_aud"] = (lo, hi)
+        if ui_cohort:
+            hints["cohort"] = ui_cohort
+
+        multi_queries = compose_queries_multi(
+            filtered_tokens,
+            expanded_categories,
+            hints,
+            cohort_hint=cohort,
+        )
+
+        queries_multi: List[Tuple[Bucket, str]] = []
+        for bucket, query_text in multi_queries:
+            allow_terms = query_text.split()
+            rewritten = _llm_rewrite(allow_terms, cohort, budget_aud) if use_llm else None
+            queries_multi.append((bucket, rewritten or query_text))
+
+        final_query = (
+            queries_multi[0][1]
+            if queries_multi
+            else (query_llm or query_no_llm)
+        )
 
         return {
             "tokens": filtered_tokens,
@@ -380,5 +573,6 @@ class QueryInterpreter:
             "product_terms": product_terms,
             "query_no_llm": query_no_llm,
             "query_llm": query_llm,
+            "queries_multi": queries_multi,
             "final_query": final_query,
         }
