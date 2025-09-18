@@ -1646,8 +1646,8 @@ with tabs[0]:
 
         def _build_image_action_url(action: str) -> str:
             params = {
-                k: list(v) if isinstance(v, list) else [v]
-                for k, v in st.experimental_get_query_params().items()
+                k: list(st.query_params.get_all(k))
+                for k in st.query_params
             }
             params["img_select"] = [action]
             query = urlencode(params, doseq=True)
@@ -1841,20 +1841,20 @@ with tabs[0]:
             st.session_state[key_bits] = []
 
         params_current = {
-            k: list(v) if isinstance(v, list) else [v]
-            for k, v in st.experimental_get_query_params().items()
+            k: list(st.query_params.get_all(k))
+            for k in st.query_params
         }
         selection_vals = params_current.pop("img_select", None)
         if selection_vals:
             if params_current:
-                st.experimental_set_query_params(
-                    **{
+                st.query_params.from_dict(
+                    {
                         k: v if len(v) > 1 else v[0]
                         for k, v in params_current.items()
                     }
                 )
             else:
-                st.experimental_set_query_params()
+                st.query_params.clear()
             choice = selection_vals[-1]
             if choice == "left":
                 st.session_state[key_bits].append(0)
