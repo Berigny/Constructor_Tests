@@ -1940,81 +1940,64 @@ with tabs[0]:
                     st.markdown(
                         """
                         <style>
-                        .img-choice-grid {
-                            display: flex;
-                            justify-content: space-between;
-                            gap: 1rem;
-                            align-items: stretch;
+                        [data-img-choice-block="true"] {
+                            margin-top: 0.5rem;
                         }
-                        .img-choice-grid .img-choice {
-                            flex: 1;
-                            display: block;
-                            border-radius: 12px;
-                            overflow: hidden;
-                            border: 1px solid #ddd;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-                        }
-                        .img-choice-grid .img-choice:hover,
-                        .img-choice-grid .img-choice:focus {
-                            transform: translateY(-2px);
-                            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
-                            border-color: #bbb;
-                        }
-                        .img-choice-grid .img-choice img {
+                        [data-img-choice-block="true"] div[data-testid="column"] div[data-testid="stButton"] > button {
                             width: 100%;
-                            height: 240px;
-                            object-fit: cover;
-                            display: block;
-                        }
-                        .img-choice-actions {
-                            margin-top: 1rem;
-                            text-align: center;
-                        }
-                        .img-choice-actions a {
-                            display: inline-block;
-                            padding: 0.5rem 1.25rem;
                             border-radius: 999px;
                             border: 1px solid #444;
                             color: #444;
-                            text-decoration: none;
+                            background-color: #fff;
                             font-weight: 500;
-                            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+                            margin-top: 0.75rem;
+                            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
                         }
-                        .img-choice-actions a:hover,
-                        .img-choice-actions a:focus {
+                        [data-img-choice-block="true"] div[data-testid="column"] div[data-testid="stButton"] > button:hover,
+                        [data-img-choice-block="true"] div[data-testid="column"] div[data-testid="stButton"] > button:focus {
                             background-color: #444;
-                            border-color: #444;
                             color: #fff;
+                            border-color: #444;
+                            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+                        }
+                        [data-img-choice-actions="true"] div[data-testid="stButton"] > button {
+                            border-radius: 999px;
+                            width: 100%;
+                            font-weight: 500;
                         }
                         </style>
                         """,
                         unsafe_allow_html=True,
                     )
-                    left_url = _build_image_action_url("left")
-                    right_url = _build_image_action_url("right")
-                    neither_url = _build_image_action_url("neither")
-                    st.markdown(
-                        f"""
-                        <div class="img-choice-grid">
-                            <a class="img-choice" href="{left_url}" target="_self">
-                                <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
-                            </a>
-                            <a class="img-choice" href="{right_url}" target="_self">
-                                <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
-                            </a>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(
-                        f"""
-                        <div class="img-choice-actions">
-                            <a href="{neither_url}" target="_self">Neither match</a>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                    st.markdown('<div data-img-choice-block="true">', unsafe_allow_html=True)
+                    left_col, right_col = st.columns(2, gap="large")
+                    with left_col:
+                        if not _render_image(left_row):
+                            st.write("No image available")
+                        elif img_alts and img_alts[0]:
+                            st.caption(str(img_alts[0]))
+                        if st.button("This matches", key="img_left_html"):
+                            st.session_state[key_bits].append(0)
+                            st.rerun()
+                    with right_col:
+                        if not _render_image(right_row):
+                            st.write("No image available")
+                        elif img_alts and len(img_alts) > 1 and img_alts[1]:
+                            st.caption(str(img_alts[1]))
+                        if st.button("This matches", key="img_right_html"):
+                            st.session_state[key_bits].append(1)
+                            st.rerun()
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown('<div data-img-choice-actions="true">', unsafe_allow_html=True)
+                    ccent = st.columns([1, 1, 1])
+                    with ccent[1]:
+                        if st.button("Neither match", key="img_neither_html"):
+                            st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
+                            emb = st.session_state.get(key_emb)
+                            current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
+                            st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
+                            st.rerun()
+                    st.markdown("</div>", unsafe_allow_html=True)
                 else:
                     # Fallback to buttons if component or image sources are unavailable
                     col1, col2 = st.columns(2)
