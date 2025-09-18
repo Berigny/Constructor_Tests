@@ -4,6 +4,7 @@
     "abstract",
     "aerial",
     "always",
+    "anniversary",
     "apparel",
     "art",
     "baby",
@@ -148,6 +149,7 @@
     "warm",
     "was",
     "water",
+    "wedding",
     "wearing",
     "website",
     "wellness",
@@ -222,6 +224,10 @@
     "abstract": [],
     "aerial": [],
     "always": [],
+    "anniversary": [
+      "Occasion",
+      "Home"
+    ],
     "apparel": [],
     "art": [],
     "baby": [],
@@ -260,7 +266,11 @@
     "conifer": [],
     "controller": [],
     "cool": [],
-    "couple": [],
+    "couple": [
+      "Occasion",
+      "Jewellery",
+      "Home"
+    ],
     "cozy": [
       "Home"
     ],
@@ -362,7 +372,10 @@
     "records": [
       "Entertainment"
     ],
-    "ring": [],
+    "ring": [
+      "Jewellery",
+      "Occasion"
+    ],
     "road": [],
     "rock": [],
     "rocky": [],
@@ -422,6 +435,10 @@
     "warm": [],
     "was": [],
     "water": [],
+    "wedding": [
+      "Occasion",
+      "Jewellery"
+    ],
     "wearing": [],
     "website": [],
     "wellness": [],

@@ -64,6 +64,8 @@ TOKEN_TO_COHORT = {
     "neon": "Gen Z",
 }
 
+SAFE_RECIPIENT_TOKENS = {"couple", "ring", "wedding", "anniversary"}
+
 # Token → product seed terms (deterministic)
 TOKEN_TO_PRODUCT_TERMS: Dict[str, List[str]] = {
     "summer": ["sunglasses","sun hat","beach towel","cooler bag"],
@@ -89,6 +91,10 @@ TOKEN_TO_PRODUCT_TERMS: Dict[str, List[str]] = {
     "philosophy": ["gift book","journal"],
     "tech": ["power bank","wireless charger","bluetooth tracker"],
     "nature": ["insulated bottle","hiking socks"],
+    "anniversary": ["champagne gift set","couples journal","photo frame"],
+    "wedding": ["champagne flutes","keepsake frame","ring dish"],
+    "couple": ["matching mugs","experience voucher","photo frame"],
+    "ring": ["ring dish","jewellery tray"],
 }
 
 CATEGORY_TO_DEFAULT_TERMS: Dict[str, List[str]] = {
@@ -102,6 +108,8 @@ CATEGORY_TO_DEFAULT_TERMS: Dict[str, List[str]] = {
     "Crafts": ["ceramic kit","embroidery kit","woodcraft kit"],
     "Sports": ["yoga mat","microfibre towel","sports bottle"],
     "Travel": ["packing cubes","weekender bag","passport wallet"],
+    "Occasion": ["anniversary keepsake","wedding photo frame","champagne flutes"],
+    "Jewellery": ["bracelet","necklace","ring dish"],
 }
 
 BUCKET_TEMPLATES: Dict[Bucket, str] = {
@@ -110,6 +118,7 @@ BUCKET_TEMPLATES: Dict[Bucket, str] = {
     "Tech": "tech and gadgets {style_practical} {recipient_phrase} {cohort_twist} under {hi}",
     "Outdoors": "{palette} outdoor gear and apparel {recipient_phrase} {cohort_twist} under {hi}",
     "Home": "{palette} home items {style_practical} {recipient_phrase} {cohort_twist} under {hi}",
+    "Entertainment": "{styles} {palette} entertainment and experiences {recipient_phrase} {cohort_twist} under {hi}",
 }
 
 STYLE_PHRASES = {
@@ -351,16 +360,34 @@ class QueryInterpreter:
 
         # choose buckets based on tokens/categories
         buckets: List[Bucket] = []
-        if "Fashion" in categories or any(t in tokens for t in ("casual","retro","90s","minimalist")): buckets.append("Fashion")
-        if "Books" in categories or any(t in tokens for t in ("book","books","philosophy","art","tech","design")): buckets.append("Books")
-        if "Tech" in categories or "tech" in tokens: buckets.append("Tech")
-        if "Outdoors" in categories or any(t in tokens for t in ("outdoor","nature","hiking","camping","summer","sun","beach")): buckets.append("Outdoors")
-        if "Home" in categories or "window" in tokens: buckets.append("Home")
+        if (
+            "Fashion" in categories
+            or any(t in tokens for t in ("casual", "retro", "90s", "minimalist"))
+        ):
+            buckets.append("Fashion")
+        if (
+            "Books" in categories
+            or any(t in tokens for t in ("book", "books", "philosophy", "art", "tech", "design"))
+        ):
+            buckets.append("Books")
+        if "Tech" in categories or "tech" in tokens:
+            buckets.append("Tech")
+        if (
+            "Outdoors" in categories
+            or any(t in tokens for t in ("outdoor", "nature", "hiking", "camping", "summer", "sun", "beach"))
+        ):
+            buckets.append("Outdoors")
+        if "Home" in categories or "window" in tokens:
+            buckets.append("Home")
+        if (
+            "Entertainment" in categories
+            or any(t in tokens for t in ("gaming", "records", "music", "entertainment"))
+        ):
+            buckets.append("Entertainment")
 
-        # defaults if nothing detected
-        if not buckets: buckets = ["Tech","Books"]
+        if not buckets:
+            buckets = ["Tech", "Books"]
 
-        # de-dup & cap
         seen: set[Bucket] = set()
         deduped: List[Bucket] = []
         for b in buckets:
@@ -368,9 +395,20 @@ class QueryInterpreter:
                 continue
             seen.add(b)
             deduped.append(b)
-            if len(deduped) >= 5:
-                break
-        buckets = deduped
+
+        if recipient == "couple":
+            for candidate in ["Home", "Fashion", "Entertainment"]:
+                if candidate not in seen:
+                    deduped.append(candidate)
+                    seen.add(candidate)
+            priority = ["Home", "Fashion", "Entertainment", "Tech", "Books", "Outdoors"]
+            ordered: List[Bucket] = [b for b in priority if b in seen]
+            for b in deduped:
+                if b not in ordered:
+                    ordered.append(b)
+            deduped = ordered
+
+        buckets = deduped[:5] or ["Tech", "Books"]
 
         out: List[Tuple[Bucket, str]] = []
         for b in buckets:
@@ -403,6 +441,12 @@ class QueryInterpreter:
         toks = _normalise(tokens)
         cats = self._expand_categories(toks, categories or [])
 
+        recipient = recipient_hint or "me"
+        if recipient == "me" and any(t in SAFE_RECIPIENT_TOKENS for t in toks):
+            recipient = "couple"
+        if recipient == "couple":
+            cats = sorted(set(cats + ["Occasion", "Jewellery", "Home"]))
+
         # infer from selected photos
         styles, palettes, cohort_meta, ctrs = self._infer_style_palette_cohort(photo_ids or [])
         conf = self._confidence(ctrs)
@@ -421,9 +465,6 @@ class QueryInterpreter:
         allowed_terms = list(dict.fromkeys(toks + cats + styles + palettes + product_terms))
         if cohort: allowed_terms.append(cohort)
         llm_phrase = _llm_rewrite(allowed_terms, cohort, budget_aud) if use_llm else None
-
-        # recipient: only infer safely (solo/couple/family would need separate signals)
-        recipient = recipient_hint or "me"
 
         # compose several bucketed queries (deterministic)
         queries_multi = self._compose_queries_multi(
@@ -448,6 +489,7 @@ class QueryInterpreter:
             "product_terms": product_terms,
             "llm_phrase_preview": llm_phrase, # optional; not used if you prefer deterministic
             "queries_multi": queries_multi,   # [(bucket, query), ...]
+            "recipient": recipient,
             "need_more_images": need_more_images,
             "probe_axes": probe_axes,         # e.g., ["palette","cohort"]
             "probe_tags": probe_tags,         # e.g., ["black","blue","neutral","retro","90s","classic"]

@@ -25,6 +25,7 @@ from src.query_composer import (
     sanitize_query,
     top_tags_from_rows,
 )
+from src.constructor_url import build_constructor_url, DEFAULT_PREFILTER_NOT
 
 
 # ----------------------- Minimal .env loader -----------------------
@@ -990,38 +991,54 @@ def interest_to_categories(interest: str, restrict_to_whitelist: bool = True) ->
     return list(dict.fromkeys([c for c in candidates if c]))
 
 
-def make_url(base: str, query: str, key: str, price_filter: Optional[str], include_categories: List[str], per_page: int = 10, page: int = 1) -> str:
-    from urllib.parse import urlencode, quote
-    params = {
-        "key": key,
-        "i": st.session_state.get("constructor_i") or str(uuid.uuid4()),
-        # Force s=1 per user observation for JSON responses
-        "s": 1,
-        "num_results_per_page": per_page,
-        "page": page,
-        "sort_by": "relevance",
-    }
-    st.session_state["constructor_i"] = params["i"]
-    if price_filter:
-        params["filters[Price]"] = price_filter
-    for cat in include_categories:
-        # multiple category filters allowed by repeating the param
-        pass
-    # Build query string with possible repeated category params
-    kv = list(params.items())
-    # Canonicalize categories against whitelist when possible
+def ensure_constructor_ids() -> Tuple[str, str]:
+    session_token = st.session_state.get("constructor_s")
+    if not session_token:
+        session_token = "1"
+        st.session_state["constructor_s"] = session_token
+    user_token = st.session_state.get("constructor_i")
+    if not user_token:
+        user_token = str(uuid.uuid4())
+        st.session_state["constructor_i"] = user_token
+    return session_token, user_token
+
+
+def make_url(
+    base: str,
+    query: str,
+    key: str,
+    price_filter: Optional[str],
+    include_categories: List[str],
+    per_page: int = 10,
+    page: int = 1,
+) -> str:
     canonical = build_category_canonical_map()
-    added = set()
+    cat_filters: List[str] = []
     for cat in include_categories:
         c = canonical.get(_norm_cat(cat), cat)
-        if c not in added:
-            kv.append(("filters[Category]", c))
-            added.add(c)
-    # Ensure query does not contain 'gift'/'gifts'
-    clean_q = sanitize_query(query)
-    # Encode query parameters using %20 for spaces (not '+') to match Constructor expectations
-    qs = urlencode(kv, doseq=True, quote_via=quote)
-    return f"{base}/v1/search/natural_language/{quote(clean_q)}?{qs}"
+        if c and c not in cat_filters:
+            cat_filters.append(c)
+
+    filters: Dict[str, str | List[str]] = {}
+    if price_filter:
+        filters["Price"] = price_filter
+    if cat_filters:
+        filters["Category"] = cat_filters if len(cat_filters) > 1 else cat_filters[0]
+
+    session_token, user_token = ensure_constructor_ids()
+    endpoint = urljoin(base, "/v1/search/natural_language/")
+
+    return build_constructor_url(
+        nl_query=sanitize_query(query),
+        api_key=key,
+        base_url=endpoint,
+        page=page,
+        per_page=per_page,
+        filters=filters or None,
+        prefilter_not=DEFAULT_PREFILTER_NOT,
+        session=session_token,
+        extra_params=[("i", user_token)],
+    )
 
 
 def normalize_filter_value(val: str) -> str:
@@ -1030,21 +1047,127 @@ def normalize_filter_value(val: str) -> str:
     return s
 
 
-def make_url_with_pairs(base: str, query: str, key: str, per_page: int, page: int, pairs: List[Tuple[str, str]]) -> str:
-    from urllib.parse import urlencode, quote
-    params = {
-        "key": key,
-        "i": st.session_state.get("constructor_i") or str(uuid.uuid4()),
-        "s": 1,
-        "num_results_per_page": per_page,
-        "page": page,
-        "sort_by": "relevance",
+def url_for_bucket(
+    base_url: str,
+    api_key: str,
+    nl: str,
+    bucket: str,
+    recipient: str,
+    budget_hi: Optional[int],
+    expanded_categories: Optional[List[str]] = None,
+    gender_opt: Optional[str] = None,
+    per_page: int = 60,
+) -> str:
+    filters: Dict[str, str | List[str]] = {}
+    if budget_hi is not None:
+        filters["Price"] = normalize_filter_value(f"0-{int(budget_hi)}")
+
+    bucket_map: Dict[str, List[str]] = {
+        "Books": ["Books"],
+        "Tech": ["Tech"],
+        "Outdoors": ["Outdoors"],
+        "Home": ["Home"],
+        "Fashion": ["Fashion"],
+        "Entertainment": ["Entertainment"],
     }
-    st.session_state["constructor_i"] = params["i"]
-    kv = list(params.items()) + [(k, normalize_filter_value(v)) for (k, v) in pairs]
-    clean_q = sanitize_query(query)
-    qs = urlencode(kv, doseq=True, quote_via=quote)
-    return f"{base}/v1/search/natural_language/{quote(clean_q)}?{qs}"
+
+    cat_filters: List[str] = list(bucket_map.get(bucket, []))
+    for cat in expanded_categories or []:
+        if not cat:
+            continue
+        if bucket.lower() in cat.lower() and cat not in cat_filters:
+            cat_filters.append(cat)
+
+    if recipient == "couple":
+        if bucket == "Home":
+            extras = ["Home", "Occasion", "Jewellery"]
+        elif bucket in {"Fashion", "Entertainment"}:
+            extras = ["Jewellery", "Occasion"]
+        else:
+            extras = []
+        for cat in extras:
+            if cat not in cat_filters:
+                cat_filters.append(cat)
+
+    if cat_filters:
+        normalized_cats = [normalize_filter_value(c) for c in cat_filters]
+        if len(normalized_cats) == 1:
+            filters["Category"] = normalized_cats[0]
+        else:
+            filters["Category"] = normalized_cats
+
+    if gender_opt in {"Men", "Women"}:
+        filters["Gender"] = gender_opt
+
+    session_token, user_token = ensure_constructor_ids()
+    endpoint = urljoin(base_url, "/v1/search/natural_language/")
+
+    return build_constructor_url(
+        nl_query=sanitize_query(nl),
+        api_key=api_key,
+        base_url=endpoint,
+        page=1,
+        per_page=per_page,
+        filters=filters or None,
+        prefilter_not=DEFAULT_PREFILTER_NOT,
+        session=session_token,
+        extra_params=[("i", user_token)],
+    )
+
+
+def make_url_with_pairs(
+    base: str,
+    query: str,
+    key: str,
+    per_page: int,
+    page: int,
+    pairs: List[Tuple[str, str]],
+) -> str:
+    filters: Dict[str, str | List[str]] = {}
+    extra_pairs: List[Tuple[str, str]] = []
+    prefilter_override: Optional[str] = None
+
+    for raw_key, raw_val in pairs:
+        key_norm = (raw_key or "").strip()
+        val_norm = normalize_filter_value(raw_val)
+        if not key_norm or not val_norm:
+            continue
+        if key_norm.startswith("filters[") and key_norm.endswith("]"):
+            field = key_norm[8:-1]
+            existing = filters.get(field)
+            if isinstance(existing, list):
+                if val_norm not in existing:
+                    existing.append(val_norm)
+            elif isinstance(existing, str) and existing:
+                if val_norm != existing:
+                    filters[field] = [existing, val_norm]
+            else:
+                filters[field] = val_norm
+        elif key_norm == "pre_filter_expression":
+            prefilter_override = val_norm
+        else:
+            extra_pairs.append((key_norm, val_norm))
+
+    session_token, user_token = ensure_constructor_ids()
+    endpoint = urljoin(base, "/v1/search/natural_language/")
+
+    prefilter = DEFAULT_PREFILTER_NOT if prefilter_override is None else None
+    extra = list(extra_pairs)
+    extra.append(("i", user_token))
+    if prefilter_override is not None:
+        extra.append(("pre_filter_expression", prefilter_override))
+
+    return build_constructor_url(
+        nl_query=sanitize_query(query),
+        api_key=key,
+        base_url=endpoint,
+        page=page,
+        per_page=per_page,
+        filters=filters or None,
+        prefilter_not=prefilter,
+        session=session_token,
+        extra_params=extra,
+    )
 
 
 def fetch_aggregate_items_generic(base_url: str, q_text: str, api_key: str, per_page: int, pages: int, filter_pairs: List[Tuple[str, str]]) -> Tuple[List[Dict[str, Any]], List[str]]:
@@ -1076,28 +1199,26 @@ def constructor_search(query: str, price_filter: Optional[str], page: int, per_p
     key = os.environ.get("CONSTRUCTOR_API_KEY") or os.environ.get("CONSTRUCTOR_KEY") or os.environ.get("CONSTRUCTOR_PUBLIC_KEY")
     if not key:
         raise ValueError("Set CONSTRUCTOR_API_KEY (or CONSTRUCTOR_KEY/CONSTRUCTOR_PUBLIC_KEY) in env or via the sidebar.")
-    i = st.session_state.get("constructor_i")
-    s_id = st.session_state.get("constructor_s")
-    if not i:
-        i = str(uuid.uuid4())
-        st.session_state["constructor_i"] = i
-    if not s_id:
-        s_id = str(uuid.uuid4())
-        st.session_state["constructor_s"] = s_id
+    session_token, user_token = ensure_constructor_ids()
+    endpoint = urljoin(base, "/v1/search/natural_language/")
 
-    url = f"{base}/v1/search/natural_language/{requests.utils.quote(query)}"
-    params = {
-        "key": key,
-        "i": i,
-        "s": s_id,
-        "num_results_per_page": per_page,
-        "page": page,
-        "sort_by": "relevance",
-    }
+    filters: Dict[str, str] = {}
     if price_filter:
-        params["filters[Price]"] = price_filter
+        filters["Price"] = price_filter
 
-    r = requests.get(url, params=params, timeout=20)
+    url = build_constructor_url(
+        nl_query=sanitize_query(query),
+        api_key=key,
+        base_url=endpoint,
+        page=page,
+        per_page=per_page,
+        filters=filters or None,
+        prefilter_not=DEFAULT_PREFILTER_NOT,
+        session=session_token,
+        extra_params=[("i", user_token)],
+    )
+
+    r = requests.get(url, timeout=20)
     r.raise_for_status()
     return r.json()
 
@@ -1885,6 +2006,7 @@ with tabs[0]:
                 expanded_categories = interpreter_result.get("categories", include_cats_prev) or []
                 queries_multi = interpreter_result.get("queries_multi", [])
                 legacy_query = interpreter_result.get("query_no_llm", q_preview)
+                recipient_guess = interpreter_result.get("recipient", "me")
 
                 with st.expander("Query & URL preview", expanded=True):
                     st.write(f"Raw tags: {', '.join(raw_tags_dbg) or '-'}")
@@ -1908,17 +2030,27 @@ with tabs[0]:
                             if bucket not in bucket_cats and bucket:
                                 bucket_cats.append(bucket)
                             bucket_cats = [c for c in dict.fromkeys(bucket_cats) if c]
+                            if recipient_guess == "couple":
+                                if bucket == "Home":
+                                    extras = ["Home", "Occasion", "Jewellery"]
+                                elif bucket in {"Fashion", "Entertainment"}:
+                                    extras = ["Jewellery", "Occasion"]
+                                else:
+                                    extras = []
+                                for extra in extras:
+                                    if extra not in bucket_cats:
+                                        bucket_cats.append(extra)
+                            url_categories = list(bucket_cats)
                             if api_key:
                                 try:
-                                    pf = price_filter_value(None, budget_hi)
-                                    url_prev = make_url(
-                                        base_url,
-                                        query_text,
-                                        api_key,
-                                        pf,
-                                        bucket_cats,
-                                        per_page=per_page,
-                                        page=1,
+                                    url_prev = url_for_bucket(
+                                        base_url=base_url,
+                                        api_key=api_key,
+                                        nl=query_text,
+                                        bucket=bucket,
+                                        recipient=recipient_guess,
+                                        budget_hi=budget_hi,
+                                        expanded_categories=url_categories,
                                     )
                                     st.code(url_prev)
                                 except Exception:
