@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlencode
 from datetime import datetime
 import csv
 import numpy as np
@@ -1644,6 +1644,15 @@ with tabs[0]:
                 pass
             file_by_stem.setdefault(resolved.stem, resolved)
 
+        def _build_image_action_url(action: str) -> str:
+            params = {
+                k: list(v) if isinstance(v, list) else [v]
+                for k, v in st.experimental_get_query_params().items()
+            }
+            params["img_select"] = [action]
+            query = urlencode(params, doseq=True)
+            return f"?{query}" if query else "?"
+
         def _row_pid(r):
             return r.get("photo_id") or r.get("id") or ""
 
@@ -1828,6 +1837,38 @@ with tabs[0]:
         else:
             st.session_state[key_leaf] = tuple(leaf_ids)
 
+        if key_bits not in st.session_state:
+            st.session_state[key_bits] = []
+
+        params_current = {
+            k: list(v) if isinstance(v, list) else [v]
+            for k, v in st.experimental_get_query_params().items()
+        }
+        selection_vals = params_current.pop("img_select", None)
+        if selection_vals:
+            if params_current:
+                st.experimental_set_query_params(
+                    **{
+                        k: v if len(v) > 1 else v[0]
+                        for k, v in params_current.items()
+                    }
+                )
+            else:
+                st.experimental_set_query_params()
+            choice = selection_vals[-1]
+            if choice == "left":
+                st.session_state[key_bits].append(0)
+                st.rerun()
+            elif choice == "right":
+                st.session_state[key_bits].append(1)
+                st.rerun()
+            elif choice == "neither":
+                st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
+                emb = st.session_state.get(key_emb)
+                current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
+                st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
+                st.rerun()
+
         bits = st.session_state.get(key_bits, [])
         tree = st.session_state.get(key_tree)
         emb = st.session_state.get(key_emb)
@@ -1845,28 +1886,25 @@ with tabs[0]:
             right_row = df_meta.iloc[j]
             # Clickable images
             st.markdown("### Which vibe matches?")
+            img_srcs: List[str] = []
+            img_alts: List[str] = []
+            for r in (left_row, right_row):
+                alt_text = str(r.get("alt_description") or "")
+                img_alts.append(alt_text)
+                lp = _row_local_path(r)
+                if lp:
+                    uri = file_to_data_uri(lp)
+                    if uri:
+                        img_srcs.append(uri)
+                        continue
+                pid = r.get("photo_id") or r.get("id") or ""
+                img_srcs.append(f"https://source.unsplash.com/{pid}/600x400")
             try:
                 from clickable_images import clickable_images  # type: ignore
-                # Build sources (prefer local)
-                srcs = []
-                titles = []
-                for r in (left_row, right_row):
-                    lp = _row_local_path(r)
-                    if lp:
-                        uri = file_to_data_uri(lp)
-                        if uri:
-                            srcs.append(uri)
-                        else:
-                            pid = r.get("photo_id") or r.get("id") or ""
-                            srcs.append(f"https://source.unsplash.com/{pid}/600x400")
-                    else:
-                        pid = r.get("photo_id") or r.get("id") or ""
-                        srcs.append(f"https://source.unsplash.com/{pid}/600x400")
-                    titles.append("")
 
                 clicked = clickable_images(
-                    srcs,
-                    titles=titles,
+                    img_srcs,
+                    titles=["", ""],
                     div_style={
                         "display": "flex",
                         "justify-content": "space-between",
@@ -1889,7 +1927,7 @@ with tabs[0]:
                     st.session_state[key_bits].append(1)
                     st.rerun()
                 # Neither match CTA
-                ncol = st.columns([1,1,1])
+                ncol = st.columns([1, 1, 1])
                 with ncol[1]:
                     if st.button("Neither match", key="img_neither"):
                         st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
@@ -1898,28 +1936,108 @@ with tabs[0]:
                         st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
                         st.rerun()
             except Exception:
-                # Fallback to buttons if component not available
-                col1, col2 = st.columns(2)
-                with col1:
-                    if not _render_image(left_row):
-                        st.write("No image available")
-                    if st.button("This matches", key="img_left_btn"):
-                        st.session_state[key_bits].append(0)
-                        st.rerun()
-                with col2:
-                    if not _render_image(right_row):
-                        st.write("No image available")
-                    if st.button("This matches", key="img_right_btn"):
-                        st.session_state[key_bits].append(1)
-                        st.rerun()
-                ccent = st.columns([1,1,1])
-                with ccent[1]:
-                    if st.button("Neither match", key="img_neither_btn"):
-                        st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
-                        emb = st.session_state.get(key_emb)
-                        current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
-                        st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
-                        st.rerun()
+                if len(img_srcs) == 2 and all(img_srcs):
+                    st.markdown(
+                        """
+                        <style>
+                        .img-choice-grid {
+                            display: flex;
+                            justify-content: space-between;
+                            gap: 1rem;
+                            align-items: stretch;
+                        }
+                        .img-choice-grid .img-choice {
+                            flex: 1;
+                            display: block;
+                            border-radius: 12px;
+                            overflow: hidden;
+                            border: 1px solid #ddd;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+                        }
+                        .img-choice-grid .img-choice:hover,
+                        .img-choice-grid .img-choice:focus {
+                            transform: translateY(-2px);
+                            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+                            border-color: #bbb;
+                        }
+                        .img-choice-grid .img-choice img {
+                            width: 100%;
+                            height: 240px;
+                            object-fit: cover;
+                            display: block;
+                        }
+                        .img-choice-actions {
+                            margin-top: 1rem;
+                            text-align: center;
+                        }
+                        .img-choice-actions a {
+                            display: inline-block;
+                            padding: 0.5rem 1.25rem;
+                            border-radius: 999px;
+                            border: 1px solid #444;
+                            color: #444;
+                            text-decoration: none;
+                            font-weight: 500;
+                            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+                        }
+                        .img-choice-actions a:hover,
+                        .img-choice-actions a:focus {
+                            background-color: #444;
+                            border-color: #444;
+                            color: #fff;
+                        }
+                        </style>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    left_url = _build_image_action_url("left")
+                    right_url = _build_image_action_url("right")
+                    neither_url = _build_image_action_url("neither")
+                    st.markdown(
+                        f"""
+                        <div class="img-choice-grid">
+                            <a class="img-choice" href="{left_url}" target="_self">
+                                <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
+                            </a>
+                            <a class="img-choice" href="{right_url}" target="_self">
+                                <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
+                            </a>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(
+                        f"""
+                        <div class="img-choice-actions">
+                            <a href="{neither_url}" target="_self">Neither match</a>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    # Fallback to buttons if component or image sources are unavailable
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if not _render_image(left_row):
+                            st.write("No image available")
+                        if st.button("This matches", key="img_left_btn"):
+                            st.session_state[key_bits].append(0)
+                            st.rerun()
+                    with col2:
+                        if not _render_image(right_row):
+                            st.write("No image available")
+                        if st.button("This matches", key="img_right_btn"):
+                            st.session_state[key_bits].append(1)
+                            st.rerun()
+                    ccent = st.columns([1, 1, 1])
+                    with ccent[1]:
+                        if st.button("Neither match", key="img_neither_btn"):
+                            st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
+                            emb = st.session_state.get(key_emb)
+                            current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
+                            st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
+                            st.rerun()
         else:
             leaf_idx = node_img
             try:
@@ -2066,6 +2184,10 @@ with tabs[0]:
                                 )
                     else:
                         st.info("No multi-bucket queries generated yet. Adjust your selections to continue.")
+
+                    if st.button("Start over", key="img_start_over"):
+                        st.session_state[key_bits] = []
+                        st.rerun()
 
 if False:
     pass  # placeholder removed old inline search block
