@@ -101,38 +101,6 @@ def get_query_interpreter(
     return _QUERY_INTERPRETER
 
 
-RECIPIENT_OPTIONS = ["Me", "Woman", "Man", "Teen", "Kid", "Couple", "Family"]
-RECIPIENT_CANON = {opt: opt.lower() for opt in RECIPIENT_OPTIONS}
-RECIPIENT_CANON["Me"] = "me"
-
-PALETTE_OPTIONS = ["Black", "Blue", "Natural", "Warm", "Neon"]
-PALETTE_CANON = {
-    "Black": "black",
-    "Blue": "blue",
-    "Natural": "natural",
-    "Warm": "warm",
-    "Neon": "neon",
-}
-
-STYLE_OPTIONS = ["Casual", "Minimalist", "90s Retro", "Practical", "Premium"]
-STYLE_CANON = {
-    "Casual": ["casual"],
-    "Minimalist": ["minimalist"],
-    "90s Retro": ["retro", "90s"],
-    "Practical": ["practical"],
-    "Premium": ["premium"],
-}
-
-COHORT_OPTIONS = ["Auto", "Gen Z", "Millennial", "Gen X", "Boomer"]
-COHORT_CANON = {
-    "Auto": None,
-    "Gen Z": "Gen Z",
-    "Millennial": "Millennial",
-    "Gen X": "Gen X",
-    "Boomer": "Boomer",
-}
-
-
 # ----------------------- Quiz loading -----------------------
 @st.cache_data
 def load_quiz(path: str = "QuizIA.json") -> Dict[str, Any]:
@@ -1874,48 +1842,15 @@ with tabs[0]:
                 if not taste_top and isinstance(tags, list):
                     taste_top = [str(t) for t in tags if str(t).strip()]
 
-                st.markdown("#### Recipient & Style")
-                hint_cols = st.columns([1.4, 1.2, 1.3, 1.3])
-                with hint_cols[0]:
-                    recipient_choice = st.radio(
-                        "Recipient",
-                        options=RECIPIENT_OPTIONS,
-                        index=0,
-                        horizontal=True,
-                        key="img_recipient_chip",
-                    )
-                with hint_cols[1]:
-                    palette_choice = st.multiselect(
-                        "Palette",
-                        options=PALETTE_OPTIONS,
-                        default=[],
-                        key="img_palette_chip",
-                    )
-                with hint_cols[2]:
-                    style_choice = st.multiselect(
-                        "Style",
-                        options=STYLE_OPTIONS,
-                        default=[],
-                        key="img_style_chip",
-                    )
-                with hint_cols[3]:
-                    apply_budget = st.checkbox("Budget cap", value=True, key="img_budget_cap")
-                    budget_value: Optional[int] = None
-                    if apply_budget:
-                        budget_value = st.slider(
-                            "Max budget ($)",
-                            min_value=20,
-                            max_value=300,
-                            value=100,
-                            step=5,
-                            key="img_budget_slider",
-                        )
-                    cohort_choice = st.selectbox(
-                        "Cohort (optional)",
-                        options=COHORT_OPTIONS,
-                        index=0,
-                        key="img_cohort_select",
-                    )
+                st.markdown("#### Budget")
+                budget_value: int = st.slider(
+                    "Max budget ($)",
+                    min_value=20,
+                    max_value=300,
+                    value=100,
+                    step=5,
+                    key="img_budget_slider",
+                )
 
                 qb = get_query_builder()
                 q_preview, include_cats_prev, debug = qb.compose_with_debug(taste_top)
@@ -1924,24 +1859,10 @@ with tabs[0]:
                 dropped_forbidden = debug.get("dropped_forbidden", [])
                 dropped_not_allowed = debug.get("dropped_not_allowed", [])
 
-                recipient_hint = RECIPIENT_CANON.get(recipient_choice, "me")
-                palette_hints = [
-                    PALETTE_CANON.get(opt, opt.lower()) for opt in palette_choice
-                ]
-                palette_hints = [p for p in palette_hints if p]
-                if palette_hints:
-                    palette_hints = list(dict.fromkeys(palette_hints))
-                style_hints: List[str] = []
-                for opt in style_choice:
-                    style_hints.extend(STYLE_CANON.get(opt, [opt.lower()]))
-                if style_hints:
-                    style_hints = list(dict.fromkeys(style_hints))
-                cohort_hint = COHORT_CANON.get(cohort_choice)
                 budget_tuple: Optional[Tuple[int, int]] = None
                 budget_hi: Optional[int] = None
-                if budget_value is not None:
-                    budget_hi = int(budget_value)
-                    budget_tuple = (0, budget_hi)
+                budget_hi = int(budget_value)
+                budget_tuple = (0, budget_hi)
 
                 interpreter = get_query_interpreter()
                 photo_ids: List[str] = []
@@ -1959,10 +1880,6 @@ with tabs[0]:
                     photo_ids=photo_ids,
                     budget_aud=budget_tuple,
                     use_llm=False,
-                    ui_recipient=recipient_hint,
-                    ui_colours=palette_hints,
-                    ui_styles=style_hints,
-                    ui_cohort=cohort_hint,
                 )
 
                 expanded_categories = interpreter_result.get("categories", include_cats_prev) or []
