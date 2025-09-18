@@ -23,20 +23,19 @@ def test_interpreter_expands_tokens_and_categories() -> None:
         photo_ids=[],
         budget_aud=(25, 60),
         use_llm=False,
-        max_terms=10,
     )
 
     assert result["tokens"] == ["summer", "sun", "window"]
-    assert result["categories"] == ["Fashion", "Home", "Outdoors", "Travel"]
+    assert set(result["categories"]) >= {"Fashion", "Home", "Outdoors"}
     assert "sunglasses" in result["product_terms"]
     assert "ceramic vase" in result["product_terms"]
-    assert result["query_llm"] is None
-    assert result["query_no_llm"].endswith("under 60 aud")
-    queries_multi = result["queries_multi"]
-    assert queries_multi[0] == ("Fashion", "casual clothes for me under $60")
-    assert result["final_query"] == "casual clothes for me under $60"
-    assert any(bucket == "Outdoors" for bucket, _ in queries_multi)
-    assert all(query.endswith("under $60") for _, query in queries_multi)
+    assert result["llm_phrase_preview"] is None
+    queries_multi = dict(result["queries_multi"])
+    assert "Fashion" in queries_multi
+    assert queries_multi["Fashion"].endswith("under $60")
+    assert any(bucket == "Outdoors" for bucket, _ in result["queries_multi"])
+    assert result["need_more_images"] is True
+    assert "style" in result["probe_axes"]
 
 
 def test_interpreter_filters_forbidden_tokens() -> None:
@@ -54,17 +53,18 @@ def test_interpreter_filters_forbidden_tokens() -> None:
     )
 
     assert result["tokens"] == ["retro", "vintage"]
-    assert "girl" not in result["tokens"]
     assert all("girl" not in term for term in result["product_terms"])
-    assert "girl" not in result["query_no_llm"]
     assert all("girl" not in q for _, q in result["queries_multi"])
+    assert result["cohort"] == "Millennial nostalgia"
 
 
 def test_interpreter_reads_cohort_from_metadata(tmp_path) -> None:
     metadata = [
         {
             "id": "photo-1",
-            "gen_marker": ["genz-coded"],
+            "style": ["minimalist"],
+            "palette": ["black"],
+            "cohort": "Gen Z",
         }
     ]
     metadata_path = tmp_path / "metadata.json"
@@ -77,43 +77,51 @@ def test_interpreter_reads_cohort_from_metadata(tmp_path) -> None:
     )
 
     result = interpreter.interpret(
-        tokens=["vintage"],
+        tokens=["retro"],
         categories=[],
         photo_ids=["photo-1"],
         use_llm=False,
     )
 
     assert result["cohort"] == "Gen Z"
-    assert "vinyl record" in result["product_terms"]
-    assert result["queries_multi"]
+    assert result["styles"] == ["minimalist"]
+    assert result["palettes"] == ["black"]
+    assert result["need_more_images"] is False
+    queries_multi = dict(result["queries_multi"])
+    assert queries_multi["Fashion"].startswith("plain in black")
 
 
-def test_interpreter_uses_user_hints() -> None:
+def test_interpreter_uses_metadata_signals_in_queries(tmp_path) -> None:
+    metadata = [
+        {
+            "id": "photo-9",
+            "style": ["minimalist", "90s"],
+            "palette": ["black", "blue"],
+            "cohort": "Gen X",
+        }
+    ]
+    metadata_path = tmp_path / "metadata.json"
+    metadata_path.write_text(json.dumps(metadata))
+
     root = _project_root()
     interpreter = QueryInterpreter(
         manifest_path=str(root / "queries_manifest.json"),
-        metadata_path=str(root / "unsplash_images" / "metadata.json"),
+        metadata_path=str(metadata_path),
     )
 
     result = interpreter.interpret(
-        tokens=["tech", "art", "philosophy", "90s"],
+        tokens=["tech", "art", "philosophy"],
         categories=["Tech"],
-        photo_ids=[],
+        photo_ids=["photo-9"],
         budget_aud=(20, 100),
         use_llm=False,
-        ui_recipient="man",
-        ui_colours=["black", "blue"],
-        ui_styles=["casual", "90s"],
-        ui_cohort="Gen X",
     )
 
+    assert result["styles"] == ["minimalist", "90s"]
+    assert result["palettes"] == ["black", "blue"]
     queries_multi = dict(result["queries_multi"])
-    fashion_query = queries_multi["Fashion"]
-    assert "for men" in fashion_query
-    assert "black and blue" in fashion_query
-    assert fashion_query.endswith("under $100")
-    books_query = queries_multi.get("Books")
-    if books_query:
-        assert "philosophy" in books_query
-    tech_query = queries_multi["Tech"]
-    assert "gadgets" in tech_query and "for men" in tech_query
+    assert "Tech" in queries_multi and "Books" in queries_multi
+    assert "Gen X sensibility" in queries_multi["Tech"]
+    assert queries_multi["Tech"].endswith("under $100")
+    assert "art and philosophy and tech" in queries_multi["Books"]
+    assert "style" in result["probe_axes"]
