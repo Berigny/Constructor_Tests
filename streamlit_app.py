@@ -10,13 +10,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
-from urllib.parse import urljoin, urlencode
+from urllib.parse import urljoin
 from datetime import datetime
 import csv
 import numpy as np
 import base64
 import random
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.image_loader import SUPPORTED, discover_images
 from src.query_builder import QueryBuilder
@@ -1749,12 +1750,6 @@ with tabs[0]:
                 pass
             file_by_stem.setdefault(resolved.stem, resolved)
 
-        def _build_image_action_url(action: str) -> str:
-            params = _query_params_get_lists()
-            params["img_select"] = [action]
-            query = urlencode(params, doseq=True)
-            return f"?{query}" if query else "?"
-
         def _row_pid(r):
             return r.get("photo_id") or r.get("id") or ""
 
@@ -2085,82 +2080,53 @@ with tabs[0]:
                         """,
                         unsafe_allow_html=True,
                     )
-                    left_url = _build_image_action_url("left")
-                    right_url = _build_image_action_url("right")
-                    neither_url = _build_image_action_url("neither")
-                    st.markdown(
+                    component_key = f"img_choice_html_{st.session_state.get('img_seed', 0)}_{len(bits)}"
+                    component_height = 360
+                    component_payload = components.html(
                         f"""
-                        <div class=\"img-choice-grid\">
-                            <a class=\"img-choice\" href=\"{left_url}\" target=\"_self\" data-img-action=\"left\">
-                                <img src=\"{html.escape(img_srcs[0], quote=True)}\" alt=\"{html.escape(img_alts[0] or '', quote=True)}\" />
-                            </a>
-                            <a class=\"img-choice\" href=\"{right_url}\" target=\"_self\" data-img-action=\"right\">
-                                <img src=\"{html.escape(img_srcs[1], quote=True)}\" alt=\"{html.escape(img_alts[1] or '', quote=True)}\" />
-                            </a>
-                        </div>
-                        <div class=\"img-choice-actions\">
-                            <a href=\"{neither_url}\" target=\"_self\" data-img-action=\"neither\">Neither match</a>
+                        <div id="img-choice-root">
+                            <div class="img-choice-grid">
+                                <a class="img-choice" href="#" data-img-action="left">
+                                    <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
+                                </a>
+                                <a class="img-choice" href="#" data-img-action="right">
+                                    <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
+                                </a>
+                            </div>
+                            <div class="img-choice-actions">
+                                <a href="#" data-img-action="neither">Neither match</a>
+                            </div>
                         </div>
                         <script>
                         (function() {{
-                            function asMulti(search) {{
-                                const multi = {{}};
-                                search.forEach((value, key) => {{
-                                    if (!multi[key]) {{
-                                        multi[key] = [];
-                                    }}
-                                    multi[key].push(value);
+                            const root = document.getElementById("img-choice-root");
+                            const emit = (value) => {{
+                                if (!value) {{
+                                    return;
+                                }}
+                                const payload = JSON.stringify({{
+                                    action: value,
+                                    marker: Date.now().toString() + "-" + Math.random().toString(36).slice(2),
                                 }});
-                                return multi;
-                            }}
-                            function toPayload(multi) {{
-                                const payload = {{}};
-                                Object.entries(multi).forEach(([key, values]) => {{
-                                    if (!values || !values.length) {{
-                                        return;
+                                const send = (msg) => {{
+                                    if (window.Streamlit && typeof window.Streamlit.setComponentValue === "function") {{
+                                        window.Streamlit.setComponentValue(msg);
+                                    }} else if (window.parent && window.parent.postMessage) {{
+                                        window.parent.postMessage({{type: "streamlit:setComponentValue", value: msg}}, "*");
                                     }}
-                                    payload[key] = values.length === 1 ? values[0] : values;
-                                }});
-                                return payload;
-                            }}
-                            function applyAction(action) {{
-                                const params = new URLSearchParams(window.location.search);
-                                params.set("img_select", action);
-                                const payload = toPayload(asMulti(params));
-                                let handled = false;
-                                try {{
-                                    if (window.parent && window.parent.postMessage) {{
-                                        window.parent.postMessage({{type: "streamlit:setQueryParams", queryParams: payload}}, "*");
-                                        window.parent.postMessage({{type: "streamlit:rerun"}}, "*");
-                                        handled = true;
-                                    }}
-                                }} catch (err) {{
-                                    console.warn("img-select postMessage fallback", err);
+                                }};
+                                send(payload);
+                            }};
+                            const adjustHeight = () => {{
+                                if (window.Streamlit && typeof window.Streamlit.setFrameHeight === "function") {{
+                                    window.Streamlit.setFrameHeight(document.body.scrollHeight);
                                 }}
-                                if (!handled) {{
-                                    try {{
-                                        const api = window.parent && window.parent.Streamlit ? window.parent.Streamlit : window.Streamlit;
-                                        if (api && typeof api.setQueryParams === "function") {{
-                                            api.setQueryParams(payload);
-                                            if (typeof api.rerunApp === "function") {{
-                                                api.rerunApp();
-                                            }} else if (window.parent && window.parent.postMessage) {{
-                                                window.parent.postMessage({{type: "streamlit:rerun"}}, "*");
-                                            }}
-                                            handled = true;
-                                        }}
-                                    }} catch (err) {{
-                                        console.warn("img-select Streamlit helper fallback", err);
-                                    }}
+                            }};
+                            const bindClicks = () => {{
+                                if (!root) {{
+                                    return;
                                 }}
-                                if (!handled) {{
-                                    const qs = params.toString();
-                                    const dest = window.location.pathname + (qs ? "?" + qs : "");
-                                    window.location.assign(dest);
-                                }}
-                            }}
-                            function bindClicks() {{
-                                document.querySelectorAll("a[data-img-action]").forEach((anchor) => {{
+                                root.querySelectorAll("[data-img-action]").forEach((anchor) => {{
                                     if (anchor.dataset.imgChoiceBound === "true") {{
                                         return;
                                     }}
@@ -2169,22 +2135,60 @@ with tabs[0]:
                                         event.preventDefault();
                                         event.stopPropagation();
                                         const action = anchor.getAttribute("data-img-action");
-                                        if (action) {{
-                                            applyAction(action);
-                                        }}
-                                    }}, {{capture: true}});
+                                        emit(action);
+                                    }});
                                 }});
+                                adjustHeight();
+                            }};
+                            if (window.Streamlit && typeof window.Streamlit.setComponentReady === "function") {{
+                                window.Streamlit.setComponentReady();
                             }}
                             if (document.readyState === "loading") {{
                                 document.addEventListener("DOMContentLoaded", bindClicks, {{once: true}});
                             }} else {{
                                 bindClicks();
                             }}
+                            window.addEventListener("resize", adjustHeight);
                         }})();
                         </script>
                         """,
-                        unsafe_allow_html=True,
+                        height=component_height,
+                        scrolling=False,
+                        key=component_key,
                     )
+                    chosen_action: Optional[str] = None
+                    if component_payload:
+                        parsed_payload: Optional[Dict[str, Any]] = None
+                        if isinstance(component_payload, str):
+                            try:
+                                maybe_dict = json.loads(component_payload)
+                                if isinstance(maybe_dict, dict):
+                                    parsed_payload = maybe_dict
+                            except Exception:
+                                parsed_payload = None
+                        if parsed_payload:
+                            action = parsed_payload.get("action")
+                            marker = parsed_payload.get("marker")
+                            if isinstance(action, str) and action in {"left", "right", "neither"}:
+                                if isinstance(marker, str):
+                                    last_marker = st.session_state.get("img_choice_marker")
+                                    if last_marker != marker:
+                                        st.session_state["img_choice_marker"] = marker
+                                        chosen_action = action
+                                else:
+                                    chosen_action = action
+                    if chosen_action == "left":
+                        st.session_state[key_bits].append(0)
+                        st.rerun()
+                    elif chosen_action == "right":
+                        st.session_state[key_bits].append(1)
+                        st.rerun()
+                    elif chosen_action == "neither":
+                        st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
+                        emb = st.session_state.get(key_emb)
+                        current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
+                        st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
+                        st.rerun()
                 else:
                     # Fallback to buttons if component or image sources are unavailable
                     col1, col2 = st.columns(2)
