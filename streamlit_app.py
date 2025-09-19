@@ -28,6 +28,111 @@ from src.query_composer import (
 from src.constructor_url import build_constructor_url, DEFAULT_PREFILTER_NOT
 
 
+def _query_params_get_lists() -> Dict[str, List[str]]:
+    """Return current query params as ``str -> List[str]`` with fallbacks."""
+
+    try:
+        qp = st.query_params  # type: ignore[attr-defined]
+    except Exception:
+        qp = None
+    if qp is not None:
+        params: Dict[str, List[str]] = {}
+        try:
+            keys = list(qp.keys())  # type: ignore[call-arg, attr-defined]
+        except Exception:
+            try:
+                keys = list(qp)  # type: ignore[arg-type]
+            except Exception:
+                keys = []
+        for key in keys:
+            values: List[str]
+            try:
+                values = list(qp.get_all(key))  # type: ignore[attr-defined]
+            except Exception:
+                try:
+                    raw = qp[key]  # type: ignore[index]
+                except Exception:
+                    raw = None
+                if isinstance(raw, (list, tuple)):
+                    values = [str(v) for v in raw if v is not None]
+                elif raw is None:
+                    values = []
+                else:
+                    values = [str(raw)]
+            params[key] = values
+        return params
+    try:
+        legacy = st.experimental_get_query_params()  # type: ignore[attr-defined]
+    except Exception:
+        return {}
+    params: Dict[str, List[str]] = {}
+    for key, raw in legacy.items():
+        if isinstance(raw, list):
+            params[key] = [str(v) for v in raw if v is not None]
+        elif raw is None:
+            params[key] = []
+        else:
+            params[key] = [str(raw)]
+    return params
+
+
+def _query_params_normalize(params: Dict[str, List[Any]]) -> Dict[str, Any]:
+    """Convert ``List`` values into forms accepted by Streamlit setters."""
+
+    normalized: Dict[str, Any] = {}
+    for key, raw_values in params.items():
+        vals = [str(v) for v in raw_values if v is not None]
+        if not vals:
+            continue
+        normalized[key] = vals if len(vals) > 1 else vals[0]
+    return normalized
+
+
+def _query_params_set_from_lists(params: Dict[str, List[Any]]) -> bool:
+    """Try to set query params using modern or experimental APIs."""
+
+    payload = _query_params_normalize(params)
+    try:
+        qp = st.query_params  # type: ignore[attr-defined]
+    except Exception:
+        qp = None
+    if qp is not None:
+        try:
+            qp.from_dict(payload)  # type: ignore[attr-defined]
+            return True
+        except Exception:
+            pass
+    try:
+        st.experimental_set_query_params(**payload)  # type: ignore[attr-defined]
+        return True
+    except Exception:
+        pass
+    return False
+
+
+def _query_params_clear() -> bool:
+    """Clear all query parameters where possible."""
+
+    try:
+        qp = st.query_params  # type: ignore[attr-defined]
+    except Exception:
+        qp = None
+    if qp is not None:
+        try:
+            qp.clear()  # type: ignore[attr-defined]
+            return True
+        except Exception:
+            pass
+    if _query_params_set_from_lists({}):
+        return True
+    try:
+        st.experimental_set_query_params()  # type: ignore[attr-defined]
+        return True
+    except Exception:
+        pass
+    return False
+
+
 # ----------------------- Minimal .env loader -----------------------
 def _load_env_from_file(path: str) -> None:
     try:
@@ -1645,10 +1750,7 @@ with tabs[0]:
             file_by_stem.setdefault(resolved.stem, resolved)
 
         def _build_image_action_url(action: str) -> str:
-            params = {
-                k: list(st.query_params.get_all(k))
-                for k in st.query_params
-            }
+            params = _query_params_get_lists()
             params["img_select"] = [action]
             query = urlencode(params, doseq=True)
             return f"?{query}" if query else "?"
@@ -1840,21 +1942,13 @@ with tabs[0]:
         if key_bits not in st.session_state:
             st.session_state[key_bits] = []
 
-        params_current = {
-            k: list(st.query_params.get_all(k))
-            for k in st.query_params
-        }
+        params_current = _query_params_get_lists()
         selection_vals = params_current.pop("img_select", None)
         if selection_vals:
             if params_current:
-                st.query_params.from_dict(
-                    {
-                        k: v if len(v) > 1 else v[0]
-                        for k, v in params_current.items()
-                    }
-                )
+                _query_params_set_from_lists(params_current)
             else:
-                st.query_params.clear()
+                _query_params_clear()
             choice = selection_vals[-1]
             if choice == "left":
                 st.session_state[key_bits].append(0)
@@ -1996,22 +2090,98 @@ with tabs[0]:
                     neither_url = _build_image_action_url("neither")
                     st.markdown(
                         f"""
-                        <div class="img-choice-grid">
-                            <a class="img-choice" href="{left_url}" target="_self">
-                                <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
+                        <div class=\"img-choice-grid\">
+                            <a class=\"img-choice\" href=\"{left_url}\" target=\"_self\" data-img-action=\"left\">
+                                <img src=\"{html.escape(img_srcs[0], quote=True)}\" alt=\"{html.escape(img_alts[0] or '', quote=True)}\" />
                             </a>
-                            <a class="img-choice" href="{right_url}" target="_self">
-                                <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
+                            <a class=\"img-choice\" href=\"{right_url}\" target=\"_self\" data-img-action=\"right\">
+                                <img src=\"{html.escape(img_srcs[1], quote=True)}\" alt=\"{html.escape(img_alts[1] or '', quote=True)}\" />
                             </a>
                         </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(
-                        f"""
-                        <div class="img-choice-actions">
-                            <a href="{neither_url}" target="_self">Neither match</a>
+                        <div class=\"img-choice-actions\">
+                            <a href=\"{neither_url}\" target=\"_self\" data-img-action=\"neither\">Neither match</a>
                         </div>
+                        <script>
+                        (function() {{
+                            function asMulti(search) {{
+                                const multi = {{}};
+                                search.forEach((value, key) => {{
+                                    if (!multi[key]) {{
+                                        multi[key] = [];
+                                    }}
+                                    multi[key].push(value);
+                                }});
+                                return multi;
+                            }}
+                            function toPayload(multi) {{
+                                const payload = {{}};
+                                Object.entries(multi).forEach(([key, values]) => {{
+                                    if (!values || !values.length) {{
+                                        return;
+                                    }}
+                                    payload[key] = values.length === 1 ? values[0] : values;
+                                }});
+                                return payload;
+                            }}
+                            function applyAction(action) {{
+                                const params = new URLSearchParams(window.location.search);
+                                params.set("img_select", action);
+                                const payload = toPayload(asMulti(params));
+                                let handled = false;
+                                try {{
+                                    if (window.parent && window.parent.postMessage) {{
+                                        window.parent.postMessage({{type: "streamlit:setQueryParams", queryParams: payload}}, "*");
+                                        window.parent.postMessage({{type: "streamlit:rerun"}}, "*");
+                                        handled = true;
+                                    }}
+                                }} catch (err) {{
+                                    console.warn("img-select postMessage fallback", err);
+                                }}
+                                if (!handled) {{
+                                    try {{
+                                        const api = window.parent && window.parent.Streamlit ? window.parent.Streamlit : window.Streamlit;
+                                        if (api && typeof api.setQueryParams === "function") {{
+                                            api.setQueryParams(payload);
+                                            if (typeof api.rerunApp === "function") {{
+                                                api.rerunApp();
+                                            }} else if (window.parent && window.parent.postMessage) {{
+                                                window.parent.postMessage({{type: "streamlit:rerun"}}, "*");
+                                            }}
+                                            handled = true;
+                                        }}
+                                    }} catch (err) {{
+                                        console.warn("img-select Streamlit helper fallback", err);
+                                    }}
+                                }}
+                                if (!handled) {{
+                                    const qs = params.toString();
+                                    const dest = window.location.pathname + (qs ? "?" + qs : "");
+                                    window.location.assign(dest);
+                                }}
+                            }}
+                            function bindClicks() {{
+                                document.querySelectorAll("a[data-img-action]").forEach((anchor) => {{
+                                    if (anchor.dataset.imgChoiceBound === "true") {{
+                                        return;
+                                    }}
+                                    anchor.dataset.imgChoiceBound = "true";
+                                    anchor.addEventListener("click", (event) => {{
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        const action = anchor.getAttribute("data-img-action");
+                                        if (action) {{
+                                            applyAction(action);
+                                        }}
+                                    }}, {{capture: true}});
+                                }});
+                            }}
+                            if (document.readyState === "loading") {{
+                                document.addEventListener("DOMContentLoaded", bindClicks, {{once: true}});
+                            }} else {{
+                                bindClicks();
+                            }}
+                        }})();
+                        </script>
                         """,
                         unsafe_allow_html=True,
                     )
@@ -2098,10 +2268,8 @@ with tabs[0]:
                 dropped_forbidden = debug.get("dropped_forbidden", [])
                 dropped_not_allowed = debug.get("dropped_not_allowed", [])
 
-                budget_tuple: Optional[Tuple[int, int]] = None
-                budget_hi: Optional[int] = None
                 budget_hi = int(budget_value)
-                budget_tuple = (0, budget_hi)
+                budget_tuple: Tuple[int, int] = (0, budget_hi)
 
                 interpreter = get_query_interpreter()
                 photo_ids: List[str] = []
