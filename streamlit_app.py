@@ -2056,35 +2056,37 @@ with tabs[0]:
                 ncol = st.columns([1, 1, 1])
                 with ncol[1]:
                     if st.button("Neither match", key="img_neither"):
-                    elif chosen_action == "neither":
-                        st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
-                        emb = st.session_state.get(key_emb)
-                        current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
-                        st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
-                        st.rerun()
-                else:
-                    # Fallback to buttons if component or image sources are unavailable
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if not _render_image(left_row):
-                            st.write("No image available")
-                        if st.button("This matches", key="img_left_btn"):
-                            st.session_state[key_bits].append(0)
-                            st.rerun()
-                    with col2:
-                        if not _render_image(right_row):
-                            st.write("No image available")
-                        if st.button("This matches", key="img_right_btn"):
-                            st.session_state[key_bits].append(1)
-                            st.rerun()
-                    ccent = st.columns([1, 1, 1])
-                    with ccent[1]:
-                        if st.button("Neither match", key="img_neither_btn"):
-                            st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
-                            emb = st.session_state.get(key_emb)
-                            current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
-                            st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
-                            st.rerun()
+                        chosen_action = "neither"
+            elif used_manual_fallback:
+                col_left, col_mid, col_right = st.columns([1, 0.4, 1])
+                with col_left:
+                    if not _render_image(left_row):
+                        st.write("No image available")
+                    if st.button("This matches", key="img_left_btn"):
+                        chosen_action = "left"
+                with col_mid:
+                    st.write("")
+                    if st.button("Neither match", key="img_neither_btn"):
+                        chosen_action = "neither"
+                with col_right:
+                    if not _render_image(right_row):
+                        st.write("No image available")
+                    if st.button("This matches", key="img_right_btn"):
+                        chosen_action = "right"
+
+            if chosen_action == "left":
+                st.session_state[key_bits].append(0)
+                st.rerun()
+            elif chosen_action == "right":
+                st.session_state[key_bits].append(1)
+                st.rerun()
+            elif chosen_action == "neither":
+                st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
+                emb = st.session_state.get(key_emb)
+                current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
+                st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
+                st.rerun()
+                    
         else:
             leaf_idx = node_img
             try:
