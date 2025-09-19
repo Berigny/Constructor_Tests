@@ -1954,6 +1954,7 @@ with tabs[0]:
                             border: 1px solid #ddd;
                             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
                             transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+                            cursor: pointer;
                         }
                         .img-choice-grid .img-choice:hover,
                         .img-choice-grid .img-choice:focus {
@@ -1980,6 +1981,7 @@ with tabs[0]:
                             text-decoration: none;
                             font-weight: 500;
                             transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+                            cursor: pointer;
                         }
                         .img-choice-actions a:hover,
                         .img-choice-actions a:focus {
@@ -1994,13 +1996,16 @@ with tabs[0]:
                     left_url = _build_image_action_url("left")
                     right_url = _build_image_action_url("right")
                     neither_url = _build_image_action_url("neither")
+                    left_target = html.escape(left_url, quote=True)
+                    right_target = html.escape(right_url, quote=True)
+                    neither_target = html.escape(neither_url, quote=True)
                     st.markdown(
                         f"""
                         <div class="img-choice-grid">
-                            <a class="img-choice" href="{left_url}" target="_self">
+                            <a class="img-choice" role="button" tabindex="0" onclick="window.location.href='{left_target}';" onkeydown="if(event.key==='Enter'||event.key===' '){{window.location.href='{left_target}';}}">
                                 <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
                             </a>
-                            <a class="img-choice" href="{right_url}" target="_self">
+                            <a class="img-choice" role="button" tabindex="0" onclick="window.location.href='{right_target}';" onkeydown="if(event.key==='Enter'||event.key===' '){{window.location.href='{right_target}';}}">
                                 <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
                             </a>
                         </div>
@@ -2010,7 +2015,7 @@ with tabs[0]:
                     st.markdown(
                         f"""
                         <div class="img-choice-actions">
-                            <a href="{neither_url}" target="_self">Neither match</a>
+                            <a role="button" tabindex="0" onclick="window.location.href='{neither_target}';" onkeydown="if(event.key==='Enter'||event.key===' '){{window.location.href='{neither_target}';}}">Neither match</a>
                         </div>
                         """,
                         unsafe_allow_html=True,
