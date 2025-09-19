@@ -1991,27 +1991,79 @@ with tabs[0]:
                         """,
                         unsafe_allow_html=True,
                     )
+                    choice_container_id = f"img-choice-{uuid.uuid4().hex}"
                     left_url = _build_image_action_url("left")
                     right_url = _build_image_action_url("right")
                     neither_url = _build_image_action_url("neither")
                     st.markdown(
                         f"""
-                        <div class="img-choice-grid">
-                            <a class="img-choice" href="{left_url}" target="_self">
-                                <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
-                            </a>
-                            <a class="img-choice" href="{right_url}" target="_self">
-                                <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
-                            </a>
+                        <div id="{choice_container_id}" class="img-choice-root" data-img-choice-root="true">
+                            <div class="img-choice-grid">
+                                <a class="img-choice" data-img-choice-link href="{left_url}" target="_self">
+                                    <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
+                                </a>
+                                <a class="img-choice" data-img-choice-link href="{right_url}" target="_self">
+                                    <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
+                                </a>
+                            </div>
+                            <div class="img-choice-actions">
+                                <a data-img-choice-link href="{neither_url}" target="_self">Neither match</a>
+                            </div>
                         </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(
-                        f"""
-                        <div class="img-choice-actions">
-                            <a href="{neither_url}" target="_self">Neither match</a>
-                        </div>
+                        <script>
+                        (function() {{
+                            const root = document.getElementById("{choice_container_id}");
+                            if (!root || root.dataset.bound === "true") {{
+                                return;
+                            }}
+                            root.dataset.bound = "true";
+                            const sendParams = (href) => {{
+                                if (!href) {{
+                                    return false;
+                                }}
+                                try {{
+                                    const url = new URL(href, window.location.href);
+                                    const params = {{}};
+                                    url.searchParams.forEach((value, key) => {{
+                                        if (!params[key]) {{
+                                            params[key] = [];
+                                        }}
+                                        params[key].push(value);
+                                    }});
+                                    const callStreamlit = (fnName, args) => {{
+                                        const stObj = window.Streamlit || (window.parent && window.parent.Streamlit);
+                                        if (stObj && typeof stObj[fnName] === "function") {{
+                                            stObj[fnName](...args);
+                                            return true;
+                                        }}
+                                        return false;
+                                    }};
+                                    if (!callStreamlit("setQueryParams", [params])) {{
+                                        const target = window.parent || window;
+                                        target.postMessage({{ type: "streamlit:setQueryParams", queryParams: params }}, "*");
+                                    }}
+                                    if (!callStreamlit("rerun", [])) {{
+                                        const target = window.parent || window;
+                                        target.postMessage({{ type: "streamlit:rerunScript" }}, "*");
+                                    }}
+                                    return true;
+                                }} catch (err) {{
+                                    console.error("Image choice handler error", err);
+                                    return false;
+                                }}
+                            }};
+                            const handleClick = (event) => {{
+                                const href = event.currentTarget.getAttribute("href");
+                                if (sendParams(href)) {{
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                }}
+                            }};
+                            root.querySelectorAll("a[data-img-choice-link]").forEach((el) => {{
+                                el.addEventListener("click", handleClick, {{ passive: false }});
+                            }});
+                        }})();
+                        </script>
                         """,
                         unsafe_allow_html=True,
                     )
