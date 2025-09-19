@@ -2075,6 +2075,7 @@ with tabs[0]:
                         img_alts[1] if len(img_alts) > 1 else "",
                         key=component_key,
                     )
+
                     if payload:
                         parsed_payload: Optional[Dict[str, Any]] = None
                         if isinstance(payload, dict):
@@ -2118,6 +2119,116 @@ with tabs[0]:
                     )
                     st.rerun()
                 if not component_rendered:
+                    component_key = f"img_choice_html_{st.session_state.get('img_seed', 0)}_{len(bits)}"
+                    component_height = 360
+                    component_payload = components.html(
+                        f"""
+                        <div id="img-choice-root">
+                            <div class="img-choice-grid">
+                                <a class="img-choice" href="#" data-img-action="left">
+                                    <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
+                                </a>
+                                <a class="img-choice" href="#" data-img-action="right">
+                                    <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
+                                </a>
+                            </div>
+                            <div class="img-choice-actions">
+                                <a href="#" data-img-action="neither">Neither match</a>
+                            </div>
+                        </div>
+                        <script>
+                        (function() {{
+                            const root = document.getElementById("img-choice-root");
+                            const emit = (value) => {{
+                                if (!value) {{
+                                    return;
+                                }}
+                                const payload = JSON.stringify({{
+                                    action: value,
+                                    marker: Date.now().toString() + "-" + Math.random().toString(36).slice(2),
+                                }});
+                                const send = (msg) => {{
+                                    if (window.Streamlit && typeof window.Streamlit.setComponentValue === "function") {{
+                                        window.Streamlit.setComponentValue(msg);
+                                    }} else if (window.parent && window.parent.postMessage) {{
+                                        window.parent.postMessage({{type: "streamlit:setComponentValue", value: msg}}, "*");
+                                    }}
+                                }};
+                                send(payload);
+                            }};
+                            const adjustHeight = () => {{
+                                if (window.Streamlit && typeof window.Streamlit.setFrameHeight === "function") {{
+                                    window.Streamlit.setFrameHeight(document.body.scrollHeight);
+                                }}
+                            }};
+                            const bindClicks = () => {{
+                                if (!root) {{
+                                    return;
+                                }}
+                                root.querySelectorAll("[data-img-action]").forEach((anchor) => {{
+                                    if (anchor.dataset.imgChoiceBound === "true") {{
+                                        return;
+                                    }}
+                                    anchor.dataset.imgChoiceBound = "true";
+                                    anchor.addEventListener("click", (event) => {{
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        const action = anchor.getAttribute("data-img-action");
+                                        emit(action);
+                                    }});
+                                }});
+                                adjustHeight();
+                            }};
+                            if (window.Streamlit && typeof window.Streamlit.setComponentReady === "function") {{
+                                window.Streamlit.setComponentReady();
+                            }}
+                            if (document.readyState === "loading") {{
+                                document.addEventListener("DOMContentLoaded", bindClicks, {{once: true}});
+                            }} else {{
+                                bindClicks();
+                            }}
+                            window.addEventListener("resize", adjustHeight);
+                        }})();
+                        </script>
+                        """,
+                        height=component_height,
+                        scrolling=False,
+                        key=component_key,
+                    )
+                    chosen_action: Optional[str] = None
+                    if component_payload:
+                        parsed_payload: Optional[Dict[str, Any]] = None
+                        if isinstance(component_payload, str):
+                            try:
+                                maybe_dict = json.loads(component_payload)
+                                if isinstance(maybe_dict, dict):
+                                    parsed_payload = maybe_dict
+                            except Exception:
+                                parsed_payload = None
+                        if parsed_payload:
+                            action = parsed_payload.get("action")
+                            marker = parsed_payload.get("marker")
+                            if isinstance(action, str) and action in {"left", "right", "neither"}:
+                                if isinstance(marker, str):
+                                    last_marker = st.session_state.get("img_choice_marker")
+                                    if last_marker != marker:
+                                        st.session_state["img_choice_marker"] = marker
+                                        chosen_action = action
+                                else:
+                                    chosen_action = action
+                    if chosen_action == "left":
+                        st.session_state[key_bits].append(0)
+                        st.rerun()
+                    elif chosen_action == "right":
+                        st.session_state[key_bits].append(1)
+                        st.rerun()
+                    elif chosen_action == "neither":
+                        st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
+                        emb = st.session_state.get(key_emb)
+                        current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
+                        st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
+                        st.rerun()
+                else:
                     # Fallback to buttons if component or image sources are unavailable
                     col1, col2 = st.columns(2)
                     with col1:
