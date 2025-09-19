@@ -17,7 +17,11 @@ import numpy as np
 import base64
 import random
 import streamlit as st
-import streamlit.components.v1 as components
+
+try:
+    from app_components.image_choice import image_choice as render_image_choice
+except Exception:
+    render_image_choice = None
 
 from src.image_loader import SUPPORTED, discover_images
 from src.query_builder import QueryBuilder
@@ -2001,9 +2005,16 @@ with tabs[0]:
                         continue
                 pid = r.get("photo_id") or r.get("id") or ""
                 img_srcs.append(f"https://source.unsplash.com/{pid}/600x400")
+
+            chosen_action: Optional[str] = None
+            used_manual_fallback = False
+
             try:
                 from clickable_images import clickable_images  # type: ignore
+            except Exception:
+                clickable_images = None
 
+            if clickable_images:
                 clicked = clickable_images(
                     img_srcs,
                     titles=["", ""],
@@ -2023,188 +2034,28 @@ with tabs[0]:
                     },
                 )
                 if clicked == 0:
-                    st.session_state[key_bits].append(0)
-                    st.rerun()
+                    chosen_action = "left"
                 elif clicked == 1:
-                    st.session_state[key_bits].append(1)
-                    st.rerun()
-                # Neither match CTA
+                    chosen_action = "right"
+            elif (
+                render_image_choice is not None
+                and len(img_srcs) == 2
+                and all(isinstance(src, str) and src for src in img_srcs)
+            ):
+                component_choice = render_image_choice(
+                    images=img_srcs,
+                    alts=img_alts,
+                    key=f"img_choice_{i}_{j}",
+                )
+                if isinstance(component_choice, str) and component_choice in {"left", "right", "neither"}:
+                    chosen_action = component_choice
+            else:
+                used_manual_fallback = True
+
+            if clickable_images:
                 ncol = st.columns([1, 1, 1])
                 with ncol[1]:
                     if st.button("Neither match", key="img_neither"):
-                        st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
-                        emb = st.session_state.get(key_emb)
-                        current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
-                        st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
-                        st.rerun()
-            except Exception:
-                if len(img_srcs) == 2 and all(img_srcs):
-                    st.markdown(
-                        """
-                        <style>
-                        .img-choice-grid {
-                            display: flex;
-                            justify-content: space-between;
-                            gap: 1rem;
-                            align-items: stretch;
-                        }
-                        .img-choice-grid .img-choice {
-                            flex: 1;
-                            display: block;
-                            border-radius: 12px;
-                            overflow: hidden;
-                            border: 1px solid #ddd;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-                        }
-                        .img-choice-grid .img-choice:hover,
-                        .img-choice-grid .img-choice:focus {
-                            transform: translateY(-2px);
-                            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
-                            border-color: #bbb;
-                        }
-                        .img-choice-grid .img-choice img {
-                            width: 100%;
-                            height: 240px;
-                            object-fit: cover;
-                            display: block;
-                        }
-                        .img-choice-actions {
-                            margin-top: 1rem;
-                            text-align: center;
-                        }
-                        .img-choice-actions a {
-                            display: inline-block;
-                            padding: 0.5rem 1.25rem;
-                            border-radius: 999px;
-                            border: 1px solid #444;
-                            color: #444;
-                            text-decoration: none;
-                            font-weight: 500;
-                            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-                        }
-                        .img-choice-actions a:hover,
-                        .img-choice-actions a:focus {
-                            background-color: #444;
-                            border-color: #444;
-                            color: #fff;
-                        }
-                        </style>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    left_url = _build_image_action_url("left")
-                    right_url = _build_image_action_url("right")
-                    neither_url = _build_image_action_url("neither")
-                    component_height = 360
-                    component_payload = components.html(
-                        f"""
-                        <div id="img-choice-root">
-                            <div class="img-choice-grid">
-                                <a class="img-choice" href="{html.escape(left_url, quote=True)}" data-img-action="left">
-                                    <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
-                                </a>
-                                <a class="img-choice" href="{html.escape(right_url, quote=True)}" data-img-action="right">
-                                    <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
-                                </a>
-                            </div>
-                            <div class="img-choice-actions">
-                                <a href="{html.escape(neither_url, quote=True)}" data-img-action="neither">Neither match</a>
-                            </div>
-                        </div>
-                        <script>
-                        (function() {{
-                            const root = document.getElementById("img-choice-root");
-                            const emit = (value) => {{
-                                if (!value) {{
-                                    return false;
-                                }}
-                                const payload = JSON.stringify({{
-                                    action: value,
-                                    marker: Date.now().toString() + "-" + Math.random().toString(36).slice(2),
-                                }});
-                                let handled = false;
-                                if (window.Streamlit && typeof window.Streamlit.setComponentValue === "function") {{
-                                    window.Streamlit.setComponentValue(payload);
-                                    handled = true;
-                                }}
-                                if (window.parent && window.parent.postMessage) {{
-                                    try {{
-                                        window.parent.postMessage({{type: "streamlit:setComponentValue", value: payload}}, "*");
-                                        handled = true;
-                                    }} catch (err) {{
-                                        handled = handled || false;
-                                    }}
-                                }}
-                                return handled;
-                            }};
-                            const adjustHeight = () => {{
-                                if (window.Streamlit && typeof window.Streamlit.setFrameHeight === "function") {{
-                                    window.Streamlit.setFrameHeight(document.body.scrollHeight);
-                                }}
-                            }};
-                            const bindClicks = () => {{
-                                if (!root) {{
-                                    return;
-                                }}
-                                root.querySelectorAll("[data-img-action]").forEach((anchor) => {{
-                                    if (anchor.dataset.imgChoiceBound === "true") {{
-                                        return;
-                                    }}
-                                    anchor.dataset.imgChoiceBound = "true";
-                                    anchor.addEventListener("click", (event) => {{
-                                        const action = anchor.getAttribute("data-img-action");
-                                        const handled = emit(action);
-                                        if (handled) {{
-                                            event.preventDefault();
-                                            event.stopPropagation();
-                                        }}
-                                    }});
-                                }});
-                                adjustHeight();
-                            }};
-                            if (window.Streamlit && typeof window.Streamlit.setComponentReady === "function") {{
-                                window.Streamlit.setComponentReady();
-                            }}
-                            if (document.readyState === "loading") {{
-                                document.addEventListener("DOMContentLoaded", bindClicks, {{once: true}});
-                            }} else {{
-                                bindClicks();
-                            }}
-                            window.addEventListener("resize", adjustHeight);
-                        }})();
-                        </script>
-                        """,
-                        height=component_height,
-                        scrolling=False,
-                    )
-                    chosen_action: Optional[str] = None
-                    if component_payload:
-                        parsed_payload: Optional[Dict[str, Any]] = None
-                        if isinstance(component_payload, str):
-                            try:
-                                maybe_dict = json.loads(component_payload)
-                                if isinstance(maybe_dict, dict):
-                                    parsed_payload = maybe_dict
-                            except Exception:
-                                parsed_payload = None
-                        if parsed_payload:
-                            action = parsed_payload.get("action")
-                            marker = parsed_payload.get("marker")
-                            if isinstance(action, str) and action in {"left", "right", "neither"}:
-                                if isinstance(marker, str):
-                                    last_marker = st.session_state.get("img_choice_marker")
-                                    if last_marker != marker:
-                                        st.session_state["img_choice_marker"] = marker
-                                        chosen_action = action
-                                else:
-                                    chosen_action = action
-                    if chosen_action == "left":
-                        st.session_state[key_bits].append(0)
-                        st.rerun()
-                    elif chosen_action == "right":
-                        st.session_state[key_bits].append(1)
-                        st.rerun()
                     elif chosen_action == "neither":
                         st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
                         emb = st.session_state.get(key_emb)
