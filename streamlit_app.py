@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlencode
 from datetime import datetime
 import csv
 import numpy as np
@@ -1750,6 +1750,19 @@ with tabs[0]:
                 pass
             file_by_stem.setdefault(resolved.stem, resolved)
 
+        def _build_image_action_url(action: str) -> str:
+            params = _query_params_get_lists()
+            params["img_select"] = [action]
+            try:
+                query = urlencode(params, doseq=True)
+            except Exception:
+                flat: List[Tuple[str, str]] = []
+                for key, values in params.items():
+                    for val in values:
+                        flat.append((key, val))
+                query = urlencode(flat)
+            return f"?{query}" if query else "?"
+
         def _row_pid(r):
             return r.get("photo_id") or r.get("id") or ""
 
@@ -2080,20 +2093,23 @@ with tabs[0]:
                         """,
                         unsafe_allow_html=True,
                     )
+                    left_url = _build_image_action_url("left")
+                    right_url = _build_image_action_url("right")
+                    neither_url = _build_image_action_url("neither")
                     component_height = 360
                     component_payload = components.html(
                         f"""
                         <div id="img-choice-root">
                             <div class="img-choice-grid">
-                                <a class="img-choice" href="#" data-img-action="left">
+                                <a class="img-choice" href="{html.escape(left_url, quote=True)}" data-img-action="left">
                                     <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
                                 </a>
-                                <a class="img-choice" href="#" data-img-action="right">
+                                <a class="img-choice" href="{html.escape(right_url, quote=True)}" data-img-action="right">
                                     <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
                                 </a>
                             </div>
                             <div class="img-choice-actions">
-                                <a href="#" data-img-action="neither">Neither match</a>
+                                <a href="{html.escape(neither_url, quote=True)}" data-img-action="neither">Neither match</a>
                             </div>
                         </div>
                         <script>
@@ -2101,20 +2117,26 @@ with tabs[0]:
                             const root = document.getElementById("img-choice-root");
                             const emit = (value) => {{
                                 if (!value) {{
-                                    return;
+                                    return false;
                                 }}
                                 const payload = JSON.stringify({{
                                     action: value,
                                     marker: Date.now().toString() + "-" + Math.random().toString(36).slice(2),
                                 }});
-                                const send = (msg) => {{
-                                    if (window.Streamlit && typeof window.Streamlit.setComponentValue === "function") {{
-                                        window.Streamlit.setComponentValue(msg);
-                                    }} else if (window.parent && window.parent.postMessage) {{
-                                        window.parent.postMessage({{type: "streamlit:setComponentValue", value: msg}}, "*");
+                                let handled = false;
+                                if (window.Streamlit && typeof window.Streamlit.setComponentValue === "function") {{
+                                    window.Streamlit.setComponentValue(payload);
+                                    handled = true;
+                                }}
+                                if (window.parent && window.parent.postMessage) {{
+                                    try {{
+                                        window.parent.postMessage({{type: "streamlit:setComponentValue", value: payload}}, "*");
+                                        handled = true;
+                                    }} catch (err) {{
+                                        handled = handled || false;
                                     }}
-                                }};
-                                send(payload);
+                                }}
+                                return handled;
                             }};
                             const adjustHeight = () => {{
                                 if (window.Streamlit && typeof window.Streamlit.setFrameHeight === "function") {{
@@ -2131,10 +2153,12 @@ with tabs[0]:
                                     }}
                                     anchor.dataset.imgChoiceBound = "true";
                                     anchor.addEventListener("click", (event) => {{
-                                        event.preventDefault();
-                                        event.stopPropagation();
                                         const action = anchor.getAttribute("data-img-action");
-                                        emit(action);
+                                        const handled = emit(action);
+                                        if (handled) {{
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                        }}
                                     }});
                                 }});
                                 adjustHeight();
