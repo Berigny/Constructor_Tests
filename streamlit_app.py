@@ -133,7 +133,6 @@ def parse_budget_range(label: str) -> Tuple[Optional[float], Optional[float]]:
         return (0.8 * x, 1.2 * x)
     return (None, None)
 
-
 def price_filter_value(lo: Optional[float], hi: Optional[float]) -> Optional[str]:
     if lo is None and hi is None:
         return None
