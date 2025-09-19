@@ -2080,7 +2080,6 @@ with tabs[0]:
                         """,
                         unsafe_allow_html=True,
                     )
-                    component_key = f"img_choice_html_{st.session_state.get('img_seed', 0)}_{len(bits)}"
                     component_height = 360
                     component_payload = components.html(
                         f"""
@@ -2154,7 +2153,6 @@ with tabs[0]:
                         """,
                         height=component_height,
                         scrolling=False,
-                        key=component_key,
                     )
                     chosen_action: Optional[str] = None
                     if component_payload:
