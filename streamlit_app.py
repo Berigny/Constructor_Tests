@@ -1644,11 +1644,89 @@ with tabs[0]:
                 pass
             file_by_stem.setdefault(resolved.stem, resolved)
 
-        def _build_image_action_url(action: str) -> str:
-            params = {
-                k: list(st.query_params.get_all(k))
-                for k in st.query_params
+        def _normalise_param_values(values: Any) -> List[str]:
+            normalised: List[str] = []
+            if values is None:
+                return normalised
+            if isinstance(values, (list, tuple)):
+                iterable = values
+            else:
+                iterable = [values]
+            for item in iterable:
+                if item is None:
+                    continue
+                text = str(item)
+                if text:
+                    normalised.append(text)
+            return normalised
+
+        def _get_query_params_lists() -> Dict[str, List[str]]:
+            try:
+                qp = st.query_params
+            except Exception:
+                qp = None
+            if qp is not None:
+                data: Dict[str, List[str]] = {}
+                try:
+                    keys = list(qp.keys())  # type: ignore[attr-defined]
+                except Exception:
+                    keys = list(qp)
+                for key in keys:
+                    values: List[str]
+                    try:
+                        values = [str(v) for v in qp.get_all(key)]  # type: ignore[attr-defined]
+                    except AttributeError:
+                        values = _normalise_param_values(qp.get(key))
+                    except Exception:
+                        values = []
+                    filtered = [v for v in values if v]
+                    if filtered:
+                        data[str(key)] = filtered
+                return data
+            raw = st.experimental_get_query_params()
+            data: Dict[str, List[str]] = {}
+            for k, v in raw.items():
+                normalised = _normalise_param_values(v)
+                if normalised:
+                    data[str(k)] = normalised
+            return data
+
+        def _set_query_params_lists(params: Dict[str, List[str]]) -> None:
+            cleaned: Dict[str, List[str]] = {}
+            for key, values in params.items():
+                normalised = _normalise_param_values(values)
+                if normalised:
+                    cleaned[str(key)] = normalised
+            serialised = {
+                k: v if len(v) > 1 else v[0]
+                for k, v in cleaned.items()
             }
+            updated = False
+            try:
+                qp = st.query_params
+                if cleaned:
+                    try:
+                        qp.clear()
+                    except Exception:
+                        pass
+                    qp.from_dict(serialised)
+                else:
+                    qp.clear()
+                updated = True
+            except Exception:
+                updated = False
+            if updated:
+                return
+            try:
+                if cleaned:
+                    st.experimental_set_query_params(**serialised)
+                else:
+                    st.experimental_set_query_params()
+            except Exception:
+                pass
+
+        def _build_image_action_url(action: str) -> str:
+            params = dict(_get_query_params_lists())
             params["img_select"] = [action]
             query = urlencode(params, doseq=True)
             return f"?{query}" if query else "?"
@@ -1840,21 +1918,10 @@ with tabs[0]:
         if key_bits not in st.session_state:
             st.session_state[key_bits] = []
 
-        params_current = {
-            k: list(st.query_params.get_all(k))
-            for k in st.query_params
-        }
+        params_current = _get_query_params_lists()
         selection_vals = params_current.pop("img_select", None)
         if selection_vals:
-            if params_current:
-                st.query_params.from_dict(
-                    {
-                        k: v if len(v) > 1 else v[0]
-                        for k, v in params_current.items()
-                    }
-                )
-            else:
-                st.query_params.clear()
+            _set_query_params_lists(params_current)
             choice = selection_vals[-1]
             if choice == "left":
                 st.session_state[key_bits].append(0)
@@ -1991,27 +2058,79 @@ with tabs[0]:
                         """,
                         unsafe_allow_html=True,
                     )
+                    choice_container_id = f"img-choice-{uuid.uuid4().hex}"
                     left_url = _build_image_action_url("left")
                     right_url = _build_image_action_url("right")
                     neither_url = _build_image_action_url("neither")
                     st.markdown(
                         f"""
-                        <div class="img-choice-grid">
-                            <a class="img-choice" href="{left_url}" target="_self">
-                                <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
-                            </a>
-                            <a class="img-choice" href="{right_url}" target="_self">
-                                <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
-                            </a>
+                        <div id="{choice_container_id}" class="img-choice-root" data-img-choice-root="true">
+                            <div class="img-choice-grid">
+                                <a class="img-choice" data-img-choice-link href="{left_url}" target="_self">
+                                    <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
+                                </a>
+                                <a class="img-choice" data-img-choice-link href="{right_url}" target="_self">
+                                    <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
+                                </a>
+                            </div>
+                            <div class="img-choice-actions">
+                                <a data-img-choice-link href="{neither_url}" target="_self">Neither match</a>
+                            </div>
                         </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(
-                        f"""
-                        <div class="img-choice-actions">
-                            <a href="{neither_url}" target="_self">Neither match</a>
-                        </div>
+                        <script>
+                        (function() {{
+                            const root = document.getElementById("{choice_container_id}");
+                            if (!root || root.dataset.bound === "true") {{
+                                return;
+                            }}
+                            root.dataset.bound = "true";
+                            const sendParams = (href) => {{
+                                if (!href) {{
+                                    return false;
+                                }}
+                                try {{
+                                    const url = new URL(href, window.location.href);
+                                    const params = {{}};
+                                    url.searchParams.forEach((value, key) => {{
+                                        if (!params[key]) {{
+                                            params[key] = [];
+                                        }}
+                                        params[key].push(value);
+                                    }});
+                                    const callStreamlit = (fnName, args) => {{
+                                        const stObj = window.Streamlit || (window.parent && window.parent.Streamlit);
+                                        if (stObj && typeof stObj[fnName] === "function") {{
+                                            stObj[fnName](...args);
+                                            return true;
+                                        }}
+                                        return false;
+                                    }};
+                                    if (!callStreamlit("setQueryParams", [params])) {{
+                                        const target = window.parent || window;
+                                        target.postMessage({{ type: "streamlit:setQueryParams", queryParams: params }}, "*");
+                                    }}
+                                    if (!callStreamlit("rerun", [])) {{
+                                        const target = window.parent || window;
+                                        target.postMessage({{ type: "streamlit:rerunScript" }}, "*");
+                                    }}
+                                    return true;
+                                }} catch (err) {{
+                                    console.error("Image choice handler error", err);
+                                    return false;
+                                }}
+                            }};
+                            const handleClick = (event) => {{
+                                const href = event.currentTarget.getAttribute("href");
+                                if (sendParams(href)) {{
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                }}
+                            }};
+                            root.querySelectorAll("a[data-img-choice-link]").forEach((el) => {{
+                                el.addEventListener("click", handleClick, {{ passive: false }});
+                            }});
+                        }})();
+                        </script>
                         """,
                         unsafe_allow_html=True,
                     )
