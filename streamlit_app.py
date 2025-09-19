@@ -7,7 +7,7 @@ import hashlib
 import mimetypes
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import requests
 from urllib.parse import urljoin
@@ -27,6 +27,45 @@ from src.query_composer import (
     top_tags_from_rows,
 )
 from src.constructor_url import build_constructor_url, DEFAULT_PREFILTER_NOT
+
+
+_COMPONENTS_ROOT = Path(__file__).resolve().parent / "components"
+_IMG_CHOICE_COMPONENT_DIR = _COMPONENTS_ROOT / "img_choice_component"
+
+_img_choice_component: Optional[Callable[..., Any]]
+if _IMG_CHOICE_COMPONENT_DIR.exists():
+    _img_choice_component = components.declare_component(
+        "img_choice_component", path=str(_IMG_CHOICE_COMPONENT_DIR)
+    )
+else:
+    _img_choice_component = None
+
+
+def _render_img_choice_component(
+    left_src: str,
+    right_src: str,
+    left_alt: str,
+    right_alt: str,
+    key: str,
+    neither_label: str = "Neither match",
+) -> Tuple[Optional[Any], bool]:
+    """Render the local image choice component if available."""
+
+    if _img_choice_component is None:
+        return None, False
+    try:
+        payload = _img_choice_component(
+            left_src=left_src,
+            right_src=right_src,
+            left_alt=left_alt,
+            right_alt=right_alt,
+            neither_label=neither_label,
+            default=None,
+            key=key,
+        )
+    except Exception:
+        return None, False
+    return payload, True
 
 
 def _query_params_get_lists() -> Dict[str, List[str]]:
@@ -2025,61 +2064,61 @@ with tabs[0]:
                         st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
                         st.rerun()
             except Exception:
+                component_rendered = False
+                chosen_action: Optional[str] = None
                 if len(img_srcs) == 2 and all(img_srcs):
-                    st.markdown(
-                        """
-                        <style>
-                        .img-choice-grid {
-                            display: flex;
-                            justify-content: space-between;
-                            gap: 1rem;
-                            align-items: stretch;
-                        }
-                        .img-choice-grid .img-choice {
-                            flex: 1;
-                            display: block;
-                            border-radius: 12px;
-                            overflow: hidden;
-                            border: 1px solid #ddd;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-                        }
-                        .img-choice-grid .img-choice:hover,
-                        .img-choice-grid .img-choice:focus {
-                            transform: translateY(-2px);
-                            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
-                            border-color: #bbb;
-                        }
-                        .img-choice-grid .img-choice img {
-                            width: 100%;
-                            height: 240px;
-                            object-fit: cover;
-                            display: block;
-                        }
-                        .img-choice-actions {
-                            margin-top: 1rem;
-                            text-align: center;
-                        }
-                        .img-choice-actions a {
-                            display: inline-block;
-                            padding: 0.5rem 1.25rem;
-                            border-radius: 999px;
-                            border: 1px solid #444;
-                            color: #444;
-                            text-decoration: none;
-                            font-weight: 500;
-                            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-                        }
-                        .img-choice-actions a:hover,
-                        .img-choice-actions a:focus {
-                            background-color: #444;
-                            border-color: #444;
-                            color: #fff;
-                        }
-                        </style>
-                        """,
-                        unsafe_allow_html=True,
+                    component_key = f"img_choice_html_{st.session_state.get('img_seed', 0)}_{len(bits)}"
+                    payload, component_rendered = _render_img_choice_component(
+                        img_srcs[0],
+                        img_srcs[1],
+                        img_alts[0] if len(img_alts) > 0 else "",
+                        img_alts[1] if len(img_alts) > 1 else "",
+                        key=component_key,
                     )
+
+                    if payload:
+                        parsed_payload: Optional[Dict[str, Any]] = None
+                        if isinstance(payload, dict):
+                            parsed_payload = payload
+                        elif isinstance(payload, str):
+                            try:
+                                maybe_dict = json.loads(payload)
+                            except Exception:
+                                maybe_dict = None
+                            if isinstance(maybe_dict, dict):
+                                parsed_payload = maybe_dict
+                        if parsed_payload:
+                            action = parsed_payload.get("action")
+                            marker = parsed_payload.get("marker")
+                            if isinstance(action, str) and action in {"left", "right", "neither"}:
+                                if isinstance(marker, str):
+                                    markers_state = st.session_state.setdefault(
+                                        "_img_choice_markers", {}
+                                    )
+                                    last_marker = markers_state.get(component_key)
+                                    if last_marker is None:
+                                        last_marker = st.session_state.get("img_choice_marker")
+                                    if last_marker != marker:
+                                        markers_state[component_key] = marker
+                                        st.session_state["img_choice_marker"] = marker
+                                        chosen_action = action
+                                else:
+                                    chosen_action = action
+                if chosen_action == "left":
+                    st.session_state[key_bits].append(0)
+                    st.rerun()
+                elif chosen_action == "right":
+                    st.session_state[key_bits].append(1)
+                    st.rerun()
+                elif chosen_action == "neither":
+                    st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
+                    emb = st.session_state.get(key_emb)
+                    current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
+                    st.session_state[key_tree] = build_greedy_tree(
+                        current_leaf_ids, emb, seed=st.session_state["img_seed"]
+                    )
+                    st.rerun()
+                if not component_rendered:
                     component_key = f"img_choice_html_{st.session_state.get('img_seed', 0)}_{len(bits)}"
                     component_height = 360
                     component_payload = components.html(
@@ -2210,7 +2249,9 @@ with tabs[0]:
                             st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
                             emb = st.session_state.get(key_emb)
                             current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
-                            st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
+                            st.session_state[key_tree] = build_greedy_tree(
+                                current_leaf_ids, emb, seed=st.session_state["img_seed"]
+                            )
                             st.rerun()
         else:
             leaf_idx = node_img
