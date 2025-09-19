@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <script src="https://unpkg.com/streamlit-component-lib@1.4.0/dist/index.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #2c2c2c;
+      }
+      .img-choice-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: stretch;
+        gap: 1rem;
+      }
+      .img-choice-grid .img-choice {
+        display: block;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #ddd;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        cursor: pointer;
+      }
+      .img-choice-grid .img-choice:hover,
+      .img-choice-grid .img-choice:focus-visible {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+        border-color: #bbb;
+      }
+      .img-choice-grid .img-choice:focus-visible {
+        outline: 3px solid #4a90e2;
+        outline-offset: 3px;
+      }
+      .img-choice-grid .img-choice img {
+        width: 100%;
+        height: 240px;
+        object-fit: cover;
+        display: block;
+      }
+      .img-choice-grid .img-choice-middle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .img-choice-grid .img-choice-middle button {
+        border: 1px solid #444;
+        background: transparent;
+        color: #444;
+        padding: 0.6rem 1.6rem;
+        border-radius: 999px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      }
+      .img-choice-grid .img-choice-middle button:hover,
+      .img-choice-grid .img-choice-middle button:focus-visible {
+        background: #444;
+        color: #fff;
+        border-color: #444;
+      }
+      .img-choice-empty {
+        text-align: center;
+        font-size: 0.9rem;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      const root = document.getElementById("root");
+      const { Streamlit } = window;
+
+      function render(event) {
+        const args = event.detail.args || {};
+        const images = Array.isArray(args.images) ? args.images : [];
+        const alts = Array.isArray(args.alts) ? args.alts : [];
+        root.innerHTML = "";
+
+        if (images.length >= 2) {
+          const grid = document.createElement("div");
+          grid.className = "img-choice-grid";
+
+          const left = document.createElement("a");
+          left.className = "img-choice";
+          left.href = "#";
+          left.dataset.choice = "left";
+          const leftImg = document.createElement("img");
+          leftImg.src = images[0] || "";
+          leftImg.alt = alts[0] || "";
+          left.appendChild(leftImg);
+          grid.appendChild(left);
+
+          const middle = document.createElement("div");
+          middle.className = "img-choice-middle";
+          const neither = document.createElement("button");
+          neither.type = "button";
+          neither.dataset.choice = "neither";
+          neither.textContent = "Neither match";
+          middle.appendChild(neither);
+          grid.appendChild(middle);
+
+          const right = document.createElement("a");
+          right.className = "img-choice";
+          right.href = "#";
+          right.dataset.choice = "right";
+          const rightImg = document.createElement("img");
+          rightImg.src = images[1] || "";
+          rightImg.alt = alts[1] || "";
+          right.appendChild(rightImg);
+          grid.appendChild(right);
+
+          root.appendChild(grid);
+        } else {
+          const empty = document.createElement("div");
+          empty.className = "img-choice-empty";
+          empty.textContent = "Add two images to compare.";
+          root.appendChild(empty);
+        }
+
+        root.querySelectorAll("[data-choice]").forEach((el) => {
+          el.addEventListener("click", (eventClick) => {
+            eventClick.preventDefault();
+            eventClick.stopPropagation();
+            const choice = el.dataset.choice || null;
+            if (choice && Streamlit && typeof Streamlit.setComponentValue === "function") {
+              Streamlit.setComponentValue(choice);
+            }
+          });
+        });
+
+        if (Streamlit && typeof Streamlit.setFrameHeight === "function") {
+          const height = root.getBoundingClientRect().height + 16;
+          Streamlit.setFrameHeight(height);
+        }
+      }
+
+      if (Streamlit) {
+        Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, (event) => {
+          render(event);
+        });
+        Streamlit.setComponentReady();
+        Streamlit.setFrameHeight(0);
+      }
+    </script>
+  </body>
+</html>

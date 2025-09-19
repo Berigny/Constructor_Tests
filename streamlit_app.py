@@ -17,7 +17,11 @@ import numpy as np
 import base64
 import random
 import streamlit as st
-import streamlit.components.v1 as components
+
+try:
+    from app_components.image_choice import image_choice as render_image_choice
+except Exception:
+    render_image_choice = None
 
 from src.image_loader import SUPPORTED, discover_images
 from src.query_builder import QueryBuilder
@@ -1988,9 +1992,16 @@ with tabs[0]:
                         continue
                 pid = r.get("photo_id") or r.get("id") or ""
                 img_srcs.append(f"https://source.unsplash.com/{pid}/600x400")
+
+            chosen_action: Optional[str] = None
+            used_manual_fallback = False
+
             try:
                 from clickable_images import clickable_images  # type: ignore
+            except Exception:
+                clickable_images = None
 
+            if clickable_images:
                 clicked = clickable_images(
                     img_srcs,
                     titles=["", ""],
@@ -2010,206 +2021,58 @@ with tabs[0]:
                     },
                 )
                 if clicked == 0:
-                    st.session_state[key_bits].append(0)
-                    st.rerun()
+                    chosen_action = "left"
                 elif clicked == 1:
-                    st.session_state[key_bits].append(1)
-                    st.rerun()
-                # Neither match CTA
+                    chosen_action = "right"
+            elif (
+                render_image_choice is not None
+                and len(img_srcs) == 2
+                and all(isinstance(src, str) and src for src in img_srcs)
+            ):
+                component_choice = render_image_choice(
+                    images=img_srcs,
+                    alts=img_alts,
+                    key=f"img_choice_{i}_{j}",
+                )
+                if isinstance(component_choice, str) and component_choice in {"left", "right", "neither"}:
+                    chosen_action = component_choice
+            else:
+                used_manual_fallback = True
+
+            if clickable_images:
                 ncol = st.columns([1, 1, 1])
                 with ncol[1]:
                     if st.button("Neither match", key="img_neither"):
-                        st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
-                        emb = st.session_state.get(key_emb)
-                        current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
-                        st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
-                        st.rerun()
-            except Exception:
-                if len(img_srcs) == 2 and all(img_srcs):
-                    st.markdown(
-                        """
-                        <style>
-                        .img-choice-grid {
-                            display: flex;
-                            justify-content: space-between;
-                            gap: 1rem;
-                            align-items: stretch;
-                        }
-                        .img-choice-grid .img-choice {
-                            flex: 1;
-                            display: block;
-                            border-radius: 12px;
-                            overflow: hidden;
-                            border: 1px solid #ddd;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-                        }
-                        .img-choice-grid .img-choice:hover,
-                        .img-choice-grid .img-choice:focus {
-                            transform: translateY(-2px);
-                            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
-                            border-color: #bbb;
-                        }
-                        .img-choice-grid .img-choice img {
-                            width: 100%;
-                            height: 240px;
-                            object-fit: cover;
-                            display: block;
-                        }
-                        .img-choice-actions {
-                            margin-top: 1rem;
-                            text-align: center;
-                        }
-                        .img-choice-actions a {
-                            display: inline-block;
-                            padding: 0.5rem 1.25rem;
-                            border-radius: 999px;
-                            border: 1px solid #444;
-                            color: #444;
-                            text-decoration: none;
-                            font-weight: 500;
-                            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-                        }
-                        .img-choice-actions a:hover,
-                        .img-choice-actions a:focus {
-                            background-color: #444;
-                            border-color: #444;
-                            color: #fff;
-                        }
-                        </style>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    component_height = 360
-                    component_payload = components.html(
-                        f"""
-                        <div id="img-choice-root">
-                            <div class="img-choice-grid">
-                                <a class="img-choice" href="#" data-img-action="left">
-                                    <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
-                                </a>
-                                <a class="img-choice" href="#" data-img-action="right">
-                                    <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
-                                </a>
-                            </div>
-                            <div class="img-choice-actions">
-                                <a href="#" data-img-action="neither">Neither match</a>
-                            </div>
-                        </div>
-                        <script>
-                        (function() {{
-                            const root = document.getElementById("img-choice-root");
-                            const emit = (value) => {{
-                                if (!value) {{
-                                    return;
-                                }}
-                                const payload = JSON.stringify({{
-                                    action: value,
-                                    marker: Date.now().toString() + "-" + Math.random().toString(36).slice(2),
-                                }});
-                                const send = (msg) => {{
-                                    if (window.Streamlit && typeof window.Streamlit.setComponentValue === "function") {{
-                                        window.Streamlit.setComponentValue(msg);
-                                    }} else if (window.parent && window.parent.postMessage) {{
-                                        window.parent.postMessage({{type: "streamlit:setComponentValue", value: msg}}, "*");
-                                    }}
-                                }};
-                                send(payload);
-                            }};
-                            const adjustHeight = () => {{
-                                if (window.Streamlit && typeof window.Streamlit.setFrameHeight === "function") {{
-                                    window.Streamlit.setFrameHeight(document.body.scrollHeight);
-                                }}
-                            }};
-                            const bindClicks = () => {{
-                                if (!root) {{
-                                    return;
-                                }}
-                                root.querySelectorAll("[data-img-action]").forEach((anchor) => {{
-                                    if (anchor.dataset.imgChoiceBound === "true") {{
-                                        return;
-                                    }}
-                                    anchor.dataset.imgChoiceBound = "true";
-                                    anchor.addEventListener("click", (event) => {{
-                                        event.preventDefault();
-                                        event.stopPropagation();
-                                        const action = anchor.getAttribute("data-img-action");
-                                        emit(action);
-                                    }});
-                                }});
-                                adjustHeight();
-                            }};
-                            if (window.Streamlit && typeof window.Streamlit.setComponentReady === "function") {{
-                                window.Streamlit.setComponentReady();
-                            }}
-                            if (document.readyState === "loading") {{
-                                document.addEventListener("DOMContentLoaded", bindClicks, {{once: true}});
-                            }} else {{
-                                bindClicks();
-                            }}
-                            window.addEventListener("resize", adjustHeight);
-                        }})();
-                        </script>
-                        """,
-                        height=component_height,
-                        scrolling=False,
-                    )
-                    chosen_action: Optional[str] = None
-                    if component_payload:
-                        parsed_payload: Optional[Dict[str, Any]] = None
-                        if isinstance(component_payload, str):
-                            try:
-                                maybe_dict = json.loads(component_payload)
-                                if isinstance(maybe_dict, dict):
-                                    parsed_payload = maybe_dict
-                            except Exception:
-                                parsed_payload = None
-                        if parsed_payload:
-                            action = parsed_payload.get("action")
-                            marker = parsed_payload.get("marker")
-                            if isinstance(action, str) and action in {"left", "right", "neither"}:
-                                if isinstance(marker, str):
-                                    last_marker = st.session_state.get("img_choice_marker")
-                                    if last_marker != marker:
-                                        st.session_state["img_choice_marker"] = marker
-                                        chosen_action = action
-                                else:
-                                    chosen_action = action
-                    if chosen_action == "left":
-                        st.session_state[key_bits].append(0)
-                        st.rerun()
-                    elif chosen_action == "right":
-                        st.session_state[key_bits].append(1)
-                        st.rerun()
-                    elif chosen_action == "neither":
-                        st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
-                        emb = st.session_state.get(key_emb)
-                        current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
-                        st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
-                        st.rerun()
-                else:
-                    # Fallback to buttons if component or image sources are unavailable
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if not _render_image(left_row):
-                            st.write("No image available")
-                        if st.button("This matches", key="img_left_btn"):
-                            st.session_state[key_bits].append(0)
-                            st.rerun()
-                    with col2:
-                        if not _render_image(right_row):
-                            st.write("No image available")
-                        if st.button("This matches", key="img_right_btn"):
-                            st.session_state[key_bits].append(1)
-                            st.rerun()
-                    ccent = st.columns([1, 1, 1])
-                    with ccent[1]:
-                        if st.button("Neither match", key="img_neither_btn"):
-                            st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
-                            emb = st.session_state.get(key_emb)
-                            current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
-                            st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
-                            st.rerun()
+                        chosen_action = "neither"
+            elif used_manual_fallback:
+                col_left, col_mid, col_right = st.columns([1, 0.4, 1])
+                with col_left:
+                    if not _render_image(left_row):
+                        st.write("No image available")
+                    if st.button("This matches", key="img_left_btn"):
+                        chosen_action = "left"
+                with col_mid:
+                    st.write("")
+                    if st.button("Neither match", key="img_neither_btn"):
+                        chosen_action = "neither"
+                with col_right:
+                    if not _render_image(right_row):
+                        st.write("No image available")
+                    if st.button("This matches", key="img_right_btn"):
+                        chosen_action = "right"
+
+            if chosen_action == "left":
+                st.session_state[key_bits].append(0)
+                st.rerun()
+            elif chosen_action == "right":
+                st.session_state[key_bits].append(1)
+                st.rerun()
+            elif chosen_action == "neither":
+                st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
+                emb = st.session_state.get(key_emb)
+                current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
+                st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
+                st.rerun()
         else:
             leaf_idx = node_img
             try:
