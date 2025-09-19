@@ -18,11 +18,6 @@ import base64
 import random
 import streamlit as st
 
-try:
-    from app_components.image_choice import image_choice as render_image_choice
-except Exception:
-    render_image_choice = None
-
 from src.image_loader import SUPPORTED, discover_images
 from src.query_builder import QueryBuilder
 from src.query_interpreter import QueryInterpreter
@@ -31,111 +26,6 @@ from src.query_composer import (
     top_tags_from_rows,
 )
 from src.constructor_url import build_constructor_url, DEFAULT_PREFILTER_NOT
-
-
-def _query_params_get_lists() -> Dict[str, List[str]]:
-    """Return current query params as ``str -> List[str]`` with fallbacks."""
-
-    try:
-        qp = st.query_params  # type: ignore[attr-defined]
-    except Exception:
-        qp = None
-    if qp is not None:
-        params: Dict[str, List[str]] = {}
-        try:
-            keys = list(qp.keys())  # type: ignore[call-arg, attr-defined]
-        except Exception:
-            try:
-                keys = list(qp)  # type: ignore[arg-type]
-            except Exception:
-                keys = []
-        for key in keys:
-            values: List[str]
-            try:
-                values = list(qp.get_all(key))  # type: ignore[attr-defined]
-            except Exception:
-                try:
-                    raw = qp[key]  # type: ignore[index]
-                except Exception:
-                    raw = None
-                if isinstance(raw, (list, tuple)):
-                    values = [str(v) for v in raw if v is not None]
-                elif raw is None:
-                    values = []
-                else:
-                    values = [str(raw)]
-            params[key] = values
-        return params
-    try:
-        legacy = st.experimental_get_query_params()  # type: ignore[attr-defined]
-    except Exception:
-        return {}
-    params: Dict[str, List[str]] = {}
-    for key, raw in legacy.items():
-        if isinstance(raw, list):
-            params[key] = [str(v) for v in raw if v is not None]
-        elif raw is None:
-            params[key] = []
-        else:
-            params[key] = [str(raw)]
-    return params
-
-
-def _query_params_normalize(params: Dict[str, List[Any]]) -> Dict[str, Any]:
-    """Convert ``List`` values into forms accepted by Streamlit setters."""
-
-    normalized: Dict[str, Any] = {}
-    for key, raw_values in params.items():
-        vals = [str(v) for v in raw_values if v is not None]
-        if not vals:
-            continue
-        normalized[key] = vals if len(vals) > 1 else vals[0]
-    return normalized
-
-
-def _query_params_set_from_lists(params: Dict[str, List[Any]]) -> bool:
-    """Try to set query params using modern or experimental APIs."""
-
-    payload = _query_params_normalize(params)
-    try:
-        qp = st.query_params  # type: ignore[attr-defined]
-    except Exception:
-        qp = None
-    if qp is not None:
-        try:
-            qp.from_dict(payload)  # type: ignore[attr-defined]
-            return True
-        except Exception:
-            pass
-    try:
-        st.experimental_set_query_params(**payload)  # type: ignore[attr-defined]
-        return True
-    except Exception:
-        pass
-    return False
-
-
-def _query_params_clear() -> bool:
-    """Clear all query parameters where possible."""
-
-    try:
-        qp = st.query_params  # type: ignore[attr-defined]
-    except Exception:
-        qp = None
-    if qp is not None:
-        try:
-            qp.clear()  # type: ignore[attr-defined]
-            return True
-        except Exception:
-            pass
-    if _query_params_set_from_lists({}):
-        return True
-    try:
-        st.experimental_set_query_params()  # type: ignore[attr-defined]
-        return True
-    except Exception:
-        pass
-    return False
 
 
 # ----------------------- Minimal .env loader -----------------------
@@ -1755,16 +1645,12 @@ with tabs[0]:
             file_by_stem.setdefault(resolved.stem, resolved)
 
         def _build_image_action_url(action: str) -> str:
-            params = _query_params_get_lists()
+            params = {
+                k: list(st.query_params.get_all(k))
+                for k in st.query_params
+            }
             params["img_select"] = [action]
-            try:
-                query = urlencode(params, doseq=True)
-            except Exception:
-                flat: List[Tuple[str, str]] = []
-                for key, values in params.items():
-                    for val in values:
-                        flat.append((key, val))
-                query = urlencode(flat)
+            query = urlencode(params, doseq=True)
             return f"?{query}" if query else "?"
 
         def _row_pid(r):
@@ -1954,13 +1840,21 @@ with tabs[0]:
         if key_bits not in st.session_state:
             st.session_state[key_bits] = []
 
-        params_current = _query_params_get_lists()
+        params_current = {
+            k: list(st.query_params.get_all(k))
+            for k in st.query_params
+        }
         selection_vals = params_current.pop("img_select", None)
         if selection_vals:
             if params_current:
-                _query_params_set_from_lists(params_current)
+                st.query_params.from_dict(
+                    {
+                        k: v if len(v) > 1 else v[0]
+                        for k, v in params_current.items()
+                    }
+                )
             else:
-                _query_params_clear()
+                st.query_params.clear()
             choice = selection_vals[-1]
             if choice == "left":
                 st.session_state[key_bits].append(0)
@@ -2005,16 +1899,9 @@ with tabs[0]:
                         continue
                 pid = r.get("photo_id") or r.get("id") or ""
                 img_srcs.append(f"https://source.unsplash.com/{pid}/600x400")
-
-            chosen_action: Optional[str] = None
-            used_manual_fallback = False
-
             try:
                 from clickable_images import clickable_images  # type: ignore
-            except Exception:
-                clickable_images = None
 
-            if clickable_images:
                 clicked = clickable_images(
                     img_srcs,
                     titles=["", ""],
@@ -2034,59 +1921,123 @@ with tabs[0]:
                     },
                 )
                 if clicked == 0:
-                    chosen_action = "left"
+                    st.session_state[key_bits].append(0)
+                    st.rerun()
                 elif clicked == 1:
-                    chosen_action = "right"
-            elif (
-                render_image_choice is not None
-                and len(img_srcs) == 2
-                and all(isinstance(src, str) and src for src in img_srcs)
-            ):
-                component_choice = render_image_choice(
-                    images=img_srcs,
-                    alts=img_alts,
-                    key=f"img_choice_{i}_{j}",
-                )
-                if isinstance(component_choice, str) and component_choice in {"left", "right", "neither"}:
-                    chosen_action = component_choice
-            else:
-                used_manual_fallback = True
-
-            if clickable_images:
+                    st.session_state[key_bits].append(1)
+                    st.rerun()
+                # Neither match CTA
                 ncol = st.columns([1, 1, 1])
                 with ncol[1]:
                     if st.button("Neither match", key="img_neither"):
-                        chosen_action = "neither"
-            elif used_manual_fallback:
-                col_left, col_mid, col_right = st.columns([1, 0.4, 1])
-                with col_left:
-                    if not _render_image(left_row):
-                        st.write("No image available")
-                    if st.button("This matches", key="img_left_btn"):
-                        chosen_action = "left"
-                with col_mid:
-                    st.write("")
-                    if st.button("Neither match", key="img_neither_btn"):
-                        chosen_action = "neither"
-                with col_right:
-                    if not _render_image(right_row):
-                        st.write("No image available")
-                    if st.button("This matches", key="img_right_btn"):
-                        chosen_action = "right"
-
-            if chosen_action == "left":
-                st.session_state[key_bits].append(0)
-                st.rerun()
-            elif chosen_action == "right":
-                st.session_state[key_bits].append(1)
-                st.rerun()
-            elif chosen_action == "neither":
-                st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
-                emb = st.session_state.get(key_emb)
-                current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
-                st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
-                st.rerun()
-                    
+                        st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
+                        emb = st.session_state.get(key_emb)
+                        current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
+                        st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
+                        st.rerun()
+            except Exception:
+                if len(img_srcs) == 2 and all(img_srcs):
+                    st.markdown(
+                        """
+                        <style>
+                        .img-choice-grid {
+                            display: flex;
+                            justify-content: space-between;
+                            gap: 1rem;
+                            align-items: stretch;
+                        }
+                        .img-choice-grid .img-choice {
+                            flex: 1;
+                            display: block;
+                            border-radius: 12px;
+                            overflow: hidden;
+                            border: 1px solid #ddd;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+                        }
+                        .img-choice-grid .img-choice:hover,
+                        .img-choice-grid .img-choice:focus {
+                            transform: translateY(-2px);
+                            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+                            border-color: #bbb;
+                        }
+                        .img-choice-grid .img-choice img {
+                            width: 100%;
+                            height: 240px;
+                            object-fit: cover;
+                            display: block;
+                        }
+                        .img-choice-actions {
+                            margin-top: 1rem;
+                            text-align: center;
+                        }
+                        .img-choice-actions a {
+                            display: inline-block;
+                            padding: 0.5rem 1.25rem;
+                            border-radius: 999px;
+                            border: 1px solid #444;
+                            color: #444;
+                            text-decoration: none;
+                            font-weight: 500;
+                            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+                        }
+                        .img-choice-actions a:hover,
+                        .img-choice-actions a:focus {
+                            background-color: #444;
+                            border-color: #444;
+                            color: #fff;
+                        }
+                        </style>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    left_url = _build_image_action_url("left")
+                    right_url = _build_image_action_url("right")
+                    neither_url = _build_image_action_url("neither")
+                    st.markdown(
+                        f"""
+                        <div class="img-choice-grid">
+                            <a class="img-choice" href="{left_url}" target="_self">
+                                <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
+                            </a>
+                            <a class="img-choice" href="{right_url}" target="_self">
+                                <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
+                            </a>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(
+                        f"""
+                        <div class="img-choice-actions">
+                            <a href="{neither_url}" target="_self">Neither match</a>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    # Fallback to buttons if component or image sources are unavailable
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if not _render_image(left_row):
+                            st.write("No image available")
+                        if st.button("This matches", key="img_left_btn"):
+                            st.session_state[key_bits].append(0)
+                            st.rerun()
+                    with col2:
+                        if not _render_image(right_row):
+                            st.write("No image available")
+                        if st.button("This matches", key="img_right_btn"):
+                            st.session_state[key_bits].append(1)
+                            st.rerun()
+                    ccent = st.columns([1, 1, 1])
+                    with ccent[1]:
+                        if st.button("Neither match", key="img_neither_btn"):
+                            st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
+                            emb = st.session_state.get(key_emb)
+                            current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
+                            st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
+                            st.rerun()
         else:
             leaf_idx = node_img
             try:
@@ -2147,8 +2098,10 @@ with tabs[0]:
                 dropped_forbidden = debug.get("dropped_forbidden", [])
                 dropped_not_allowed = debug.get("dropped_not_allowed", [])
 
+                budget_tuple: Optional[Tuple[int, int]] = None
+                budget_hi: Optional[int] = None
                 budget_hi = int(budget_value)
-                budget_tuple: Tuple[int, int] = (0, budget_hi)
+                budget_tuple = (0, budget_hi)
 
                 interpreter = get_query_interpreter()
                 photo_ids: List[str] = []
