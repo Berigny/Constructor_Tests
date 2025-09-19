@@ -1940,130 +1940,32 @@ with tabs[0]:
                     st.markdown(
                         """
                         <style>
-                        .img-choice-grid {
-                            display: flex;
-                            justify-content: space-between;
-                            gap: 1rem;
-                            align-items: stretch;
+                        [data-img-choice-block="true"] {
+                            margin-top: 0.5rem;
                         }
-                        .img-choice-grid .img-choice {
-                            flex: 1;
-                            display: block;
-                            border-radius: 12px;
-                            overflow: hidden;
-                            border: 1px solid #ddd;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-                        }
-                        .img-choice-grid .img-choice:hover,
-                        .img-choice-grid .img-choice:focus {
-                            transform: translateY(-2px);
-                            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
-                            border-color: #bbb;
-                        }
-                        .img-choice-grid .img-choice img {
+                        [data-img-choice-block="true"] div[data-testid="column"] div[data-testid="stButton"] > button {
                             width: 100%;
-                            height: 240px;
-                            object-fit: cover;
-                            display: block;
-                        }
-                        .img-choice-actions {
-                            margin-top: 1rem;
-                            text-align: center;
-                        }
-                        .img-choice-actions a {
-                            display: inline-block;
-                            padding: 0.5rem 1.25rem;
                             border-radius: 999px;
                             border: 1px solid #444;
                             color: #444;
-                            text-decoration: none;
+                            background-color: #fff;
                             font-weight: 500;
-                            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+                            margin-top: 0.75rem;
+                            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
                         }
-                        .img-choice-actions a:hover,
-                        .img-choice-actions a:focus {
+                        [data-img-choice-block="true"] div[data-testid="column"] div[data-testid="stButton"] > button:hover,
+                        [data-img-choice-block="true"] div[data-testid="column"] div[data-testid="stButton"] > button:focus {
                             background-color: #444;
-                            border-color: #444;
                             color: #fff;
+                            border-color: #444;
+                            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+                        }
+                        [data-img-choice-actions="true"] div[data-testid="stButton"] > button {
+                            border-radius: 999px;
+                            width: 100%;
+                            font-weight: 500;
                         }
                         </style>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    choice_container_id = f"img-choice-{uuid.uuid4().hex}"
-                    left_url = _build_image_action_url("left")
-                    right_url = _build_image_action_url("right")
-                    neither_url = _build_image_action_url("neither")
-                    st.markdown(
-                        f"""
-                        <div id="{choice_container_id}" class="img-choice-root" data-img-choice-root="true">
-                            <div class="img-choice-grid">
-                                <a class="img-choice" data-img-choice-link href="{left_url}" target="_self">
-                                    <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
-                                </a>
-                                <a class="img-choice" data-img-choice-link href="{right_url}" target="_self">
-                                    <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
-                                </a>
-                            </div>
-                            <div class="img-choice-actions">
-                                <a data-img-choice-link href="{neither_url}" target="_self">Neither match</a>
-                            </div>
-                        </div>
-                        <script>
-                        (function() {{
-                            const root = document.getElementById("{choice_container_id}");
-                            if (!root || root.dataset.bound === "true") {{
-                                return;
-                            }}
-                            root.dataset.bound = "true";
-                            const sendParams = (href) => {{
-                                if (!href) {{
-                                    return false;
-                                }}
-                                try {{
-                                    const url = new URL(href, window.location.href);
-                                    const params = {{}};
-                                    url.searchParams.forEach((value, key) => {{
-                                        if (!params[key]) {{
-                                            params[key] = [];
-                                        }}
-                                        params[key].push(value);
-                                    }});
-                                    const callStreamlit = (fnName, args) => {{
-                                        const stObj = window.Streamlit || (window.parent && window.parent.Streamlit);
-                                        if (stObj && typeof stObj[fnName] === "function") {{
-                                            stObj[fnName](...args);
-                                            return true;
-                                        }}
-                                        return false;
-                                    }};
-                                    if (!callStreamlit("setQueryParams", [params])) {{
-                                        const target = window.parent || window;
-                                        target.postMessage({{ type: "streamlit:setQueryParams", queryParams: params }}, "*");
-                                    }}
-                                    if (!callStreamlit("rerun", [])) {{
-                                        const target = window.parent || window;
-                                        target.postMessage({{ type: "streamlit:rerunScript" }}, "*");
-                                    }}
-                                    return true;
-                                }} catch (err) {{
-                                    console.error("Image choice handler error", err);
-                                    return false;
-                                }}
-                            }};
-                            const handleClick = (event) => {{
-                                const href = event.currentTarget.getAttribute("href");
-                                if (sendParams(href)) {{
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                }}
-                            }};
-                            root.querySelectorAll("a[data-img-choice-link]").forEach((el) => {{
-                                el.addEventListener("click", handleClick, {{ passive: false }});
-                            }});
-                        }})();
-                        </script>
                         """,
                         unsafe_allow_html=True,
                     )
