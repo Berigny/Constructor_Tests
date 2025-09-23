@@ -7,7 +7,7 @@ import hashlib
 import mimetypes
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 import requests
 from urllib.parse import urljoin
@@ -1055,7 +1055,7 @@ def url_for_bucket(
     recipient: str,
     budget_hi: Optional[int],
     expanded_categories: Optional[List[str]] = None,
-    gender_opt: Optional[str] = None,
+    demographic_filters: Optional[Mapping[str, str | Sequence[str]]] = None,
     per_page: int = 60,
 ) -> str:
     filters: Dict[str, str | List[str]] = {}
@@ -1096,8 +1096,34 @@ def url_for_bucket(
         else:
             filters["Category"] = normalized_cats
 
-    if gender_opt in {"Men", "Women"}:
-        filters["Gender"] = gender_opt
+    def _merge_filter(field: str, value: str | Sequence[str]) -> None:
+        if isinstance(value, (list, tuple, set)):
+            incoming = [normalize_filter_value(str(v)) for v in value if str(v).strip()]
+        else:
+            incoming = [normalize_filter_value(str(value))]
+        incoming = [v for v in incoming if v]
+        if not incoming:
+            return
+        current = filters.get(field)
+        if current is None:
+            filters[field] = incoming if len(incoming) > 1 else incoming[0]
+            return
+        if isinstance(current, list):
+            for val in incoming:
+                if val not in current:
+                    current.append(val)
+            return
+        combined = [current]
+        for val in incoming:
+            if val not in combined:
+                combined.append(val)
+        filters[field] = combined if len(combined) > 1 else combined[0]
+
+    if demographic_filters:
+        for field, value in demographic_filters.items():
+            if field == "Category":
+                continue
+            _merge_filter(str(field), value)
 
     session_token, user_token = ensure_constructor_ids()
     endpoint = urljoin(base_url, "/v1/search/natural_language/")
@@ -2066,6 +2092,7 @@ with tabs[0]:
                 queries_multi = interpreter_result.get("queries_multi", [])
                 legacy_query = interpreter_result.get("query_no_llm", q_preview)
                 recipient_guess = interpreter_result.get("recipient", "me")
+                demographic_filters = interpreter_result.get("filters", {}) or {}
 
                 with st.expander("Query & URL preview", expanded=True):
                     st.write(f"Raw tags: {', '.join(raw_tags_dbg) or '-'}")
@@ -2110,6 +2137,7 @@ with tabs[0]:
                                         recipient=recipient_guess,
                                         budget_hi=budget_hi,
                                         expanded_categories=url_categories,
+                                        demographic_filters=demographic_filters,
                                     )
                                     st.code(url_prev)
                                 except Exception:

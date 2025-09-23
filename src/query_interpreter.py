@@ -37,6 +37,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Literal
 
+from .demographics import infer_demographics_from_photos
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -441,11 +443,20 @@ class QueryInterpreter:
         toks = _normalise(tokens)
         cats = self._expand_categories(toks, categories or [])
 
-        recipient = recipient_hint or "me"
+        demographics = infer_demographics_from_photos(photo_ids or [], self.meta_index)
+        demo_filters: Dict[str, Any] = demographics.get("filters", {}) or {}
+        demo_recipient = demographics.get("recipient")
+        demo_categories = demographics.get("categories") or []
+        if demo_categories:
+            cats = sorted({*cats, *(c for c in demo_categories if c)})
+
+        recipient = recipient_hint or demo_recipient or "me"
         if recipient == "me" and any(t in SAFE_RECIPIENT_TOKENS for t in toks):
             recipient = "couple"
         if recipient == "couple":
             cats = sorted(set(cats + ["Occasion", "Jewellery", "Home"]))
+        if demographics.get("occasion") and "Occasion" not in cats:
+            cats = sorted(set(cats + ["Occasion"]))
 
         # infer from selected photos
         styles, palettes, cohort_meta, ctrs = self._infer_style_palette_cohort(photo_ids or [])
@@ -462,7 +473,11 @@ class QueryInterpreter:
         product_terms = self._product_seeds(toks, cats, max_terms=12)
 
         # build allowed term list for optional LLM rewrite
-        allowed_terms = list(dict.fromkeys(toks + cats + styles + palettes + product_terms))
+        demo_terms = []
+        if demographics.get("occasion"):
+            demo_terms.append(str(demographics["occasion"]).lower())
+        demo_terms.extend(str(cat).lower() for cat in demo_categories if cat)
+        allowed_terms = list(dict.fromkeys(toks + cats + styles + palettes + product_terms + demo_terms))
         if cohort: allowed_terms.append(cohort)
         llm_phrase = _llm_rewrite(allowed_terms, cohort, budget_aud) if use_llm else None
 
@@ -490,6 +505,8 @@ class QueryInterpreter:
             "llm_phrase_preview": llm_phrase, # optional; not used if you prefer deterministic
             "queries_multi": queries_multi,   # [(bucket, query), ...]
             "recipient": recipient,
+            "demographics": demographics,
+            "filters": demo_filters,
             "need_more_images": need_more_images,
             "probe_axes": probe_axes,         # e.g., ["palette","cohort"]
             "probe_tags": probe_tags,         # e.g., ["black","blue","neutral","retro","90s","classic"]
