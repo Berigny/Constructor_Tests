@@ -7,7 +7,7 @@ import hashlib
 import mimetypes
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import requests
 from urllib.parse import urljoin
@@ -17,13 +17,6 @@ import numpy as np
 import base64
 import random
 import streamlit as st
-
-try:
-    from app_components.image_choice import (
-        image_choice as render_image_choice,
-    )
-except Exception:
-    render_image_choice = None
 
 from src.image_loader import SUPPORTED, discover_images
 from src.query_builder import QueryBuilder
@@ -1700,6 +1693,57 @@ with tabs[0]:
                 return True
             return False
 
+        def _render_manual_image_choice(
+            left_row: Dict[str, Any],
+            right_row: Dict[str, Any],
+            image_sources: Sequence[str],
+            image_alts: Sequence[str],
+            key_prefix: str,
+        ) -> Optional[str]:
+            """Render a Streamlit-native fallback selector for two images."""
+
+            sources = list(image_sources)[:2]
+            alts_local = list(image_alts)[:2]
+            while len(sources) < 2:
+                sources.append("")
+            while len(alts_local) < 2:
+                alts_local.append("")
+
+            choice: Optional[str] = None
+            col_left, col_mid, col_right = st.columns([1, 0.5, 1])
+
+            with col_left:
+                displayed = False
+                if sources[0]:
+                    _show_image_box(sources[0], alts_local[0], height=240)
+                    displayed = True
+                if not displayed and not _render_image(left_row):
+                    st.write("No image available")
+                if alts_local[0]:
+                    st.caption(alts_local[0])
+                if st.button("This matches", key=f"img_left_btn_{key_prefix}"):
+                    choice = "left"
+
+            with col_mid:
+                st.write("")
+                st.write("")
+                if st.button("Neither match", key=f"img_neither_btn_{key_prefix}"):
+                    return "neither"
+
+            with col_right:
+                displayed = False
+                if sources[1]:
+                    _show_image_box(sources[1], alts_local[1], height=240)
+                    displayed = True
+                if not displayed and not _render_image(right_row):
+                    st.write("No image available")
+                if alts_local[1]:
+                    st.caption(alts_local[1])
+                if st.button("This matches", key=f"img_right_btn_{key_prefix}"):
+                    return "right"
+
+            return choice
+
         overrides = st.session_state.get("img_meta_override", {})
         if overrides:
             df_meta = df_meta.copy()
@@ -1869,78 +1913,55 @@ with tabs[0]:
                 pid = r.get("photo_id") or r.get("id") or ""
                 img_srcs.append(f"https://source.unsplash.com/{pid}/600x400")
             chosen_action: Optional[str] = None
-            clickable_available = False
+            clickable_rendered = False
             if len(img_srcs) == 2 and all(img_srcs):
                 try:
                     from clickable_images import clickable_images  # type: ignore
-
-                    clickable_available = True
-                    clicked = clickable_images(
-                        img_srcs,
-                        titles=["", ""],
-                        div_style={
-                            "display": "flex",
-                            "justify-content": "space-between",
-                            "gap": "1rem",
-                            "align-items": "stretch",
-                        },
-                        img_style={
-                            "width": "100%",
-                            "height": "240px",
-                            "object-fit": "cover",
-                            "border-radius": "12px",
-                            "border": "1px solid #ddd",
-                            "box-shadow": "0 2px 8px rgba(0,0,0,0.05)",
-                        },
-                    )
-                    if clicked == 0:
-                        chosen_action = "left"
-                    elif clicked == 1:
-                        chosen_action = "right"
-                    ncol = st.columns([1, 1, 1])
-                    with ncol[1]:
-                        if st.button("Neither match", key=f"img_neither_{i}_{j}"):
-                            chosen_action = "neither"
                 except Exception:
-                    clickable_available = False
-
-            component_rendered = False
-            component_choice: Optional[str] = None
-            if (
-                chosen_action is None
-                and render_image_choice is not None
-                and len(img_srcs) == 2
-                and all(img_srcs)
-            ):
-                try:
-                    component_choice = render_image_choice(
-                        images=img_srcs,
-                        alts=img_alts,
-                        key=f"img_choice_{i}_{j}",
-                    )
-                except Exception:
-                    component_choice = None
+                    clickable_images = None
                 else:
-                    component_rendered = True
-                    if component_choice in {"left", "right", "neither"}:
-                        chosen_action = str(component_choice)
+                    try:
+                        clicked = clickable_images(
+                            img_srcs,
+                            titles=["", ""],
+                            div_style={
+                                "display": "flex",
+                                "justify-content": "space-between",
+                                "gap": "1rem",
+                                "align-items": "stretch",
+                            },
+                            img_style={
+                                "width": "100%",
+                                "height": "240px",
+                                "object-fit": "cover",
+                                "border-radius": "12px",
+                                "border": "1px solid #ddd",
+                                "box-shadow": "0 2px 8px rgba(0,0,0,0.05)",
+                            },
+                        )
+                    except Exception:
+                        clickable_rendered = False
+                    else:
+                        clickable_rendered = True
+                        if clicked == 0:
+                            chosen_action = "left"
+                        elif clicked == 1:
+                            chosen_action = "right"
+                        ncol = st.columns([1, 1, 1])
+                        with ncol[1]:
+                            if st.button("Neither match", key=f"img_neither_{i}_{j}"):
+                                chosen_action = "neither"
 
-            if chosen_action is None and not clickable_available and not component_rendered:
-                col1, col2 = st.columns(2)
-                with col1:
-                    if not _render_image(left_row):
-                        st.write("No image available")
-                    if st.button("This matches", key=f"img_left_btn_{i}_{j}"):
-                        chosen_action = "left"
-                with col2:
-                    if not _render_image(right_row):
-                        st.write("No image available")
-                    if st.button("This matches", key=f"img_right_btn_{i}_{j}"):
-                        chosen_action = "right"
-                ccent = st.columns([1, 1, 1])
-                with ccent[1]:
-                    if st.button("Neither match", key=f"img_neither_btn_{i}_{j}"):
-                        chosen_action = "neither"
+            if chosen_action is None and not clickable_rendered:
+                manual_choice = _render_manual_image_choice(
+                    left_row,
+                    right_row,
+                    img_srcs,
+                    img_alts,
+                    key_prefix=f"{i}_{j}",
+                )
+                if manual_choice in {"left", "right", "neither"}:
+                    chosen_action = manual_choice
 
             if chosen_action == "left":
                 st.session_state[key_bits].append(0)
