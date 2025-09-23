@@ -1905,21 +1905,25 @@ with tabs[0]:
                     clickable_available = False
 
             component_rendered = False
+            component_choice: Optional[str] = None
             if (
                 chosen_action is None
-                and not clickable_available
                 and render_image_choice is not None
                 and len(img_srcs) == 2
                 and all(img_srcs)
             ):
-                component_rendered = True
-                component_choice = render_image_choice(
-                    images=img_srcs,
-                    alts=img_alts,
-                    key=f"img_choice_{i}_{j}",
-                )
-                if component_choice in {"left", "right", "neither"}:
-                    chosen_action = str(component_choice)
+                try:
+                    component_choice = render_image_choice(
+                        images=img_srcs,
+                        alts=img_alts,
+                        key=f"img_choice_{i}_{j}",
+                    )
+                except Exception:
+                    component_choice = None
+                else:
+                    component_rendered = True
+                    if component_choice in {"left", "right", "neither"}:
+                        chosen_action = str(component_choice)
 
             if chosen_action is None and not clickable_available and not component_rendered:
                 col1, col2 = st.columns(2)
@@ -1978,7 +1982,7 @@ with tabs[0]:
                             except Exception:
                                 st.write("No image available")
                                 continue
-                            if not _render_image(img_row):
+                            if not _render_image(img_row):          
                                 st.write("No image available")
                 tags = leaf.get("tags", [])
                 if not isinstance(tags, list):
