@@ -1982,7 +1982,7 @@ with tabs[0]:
                             except Exception:
                                 st.write("No image available")
                                 continue
-                            if not _render_image(img_row):
+                            if not _render_image(img_row):          
                                 st.write("No image available")
                 tags = leaf.get("tags", [])
                 if not isinstance(tags, list):
