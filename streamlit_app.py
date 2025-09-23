@@ -10,13 +10,20 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
-from urllib.parse import urljoin, urlencode
+from urllib.parse import urljoin
 from datetime import datetime
 import csv
 import numpy as np
 import base64
 import random
 import streamlit as st
+
+try:
+    from app_components.image_choice import (
+        image_choice as render_image_choice,
+    )
+except Exception:
+    render_image_choice = None
 
 from src.image_loader import SUPPORTED, discover_images
 from src.query_builder import QueryBuilder
@@ -1644,15 +1651,6 @@ with tabs[0]:
                 pass
             file_by_stem.setdefault(resolved.stem, resolved)
 
-        def _build_image_action_url(action: str) -> str:
-            params = {
-                k: list(st.query_params.get_all(k))
-                for k in st.query_params
-            }
-            params["img_select"] = [action]
-            query = urlencode(params, doseq=True)
-            return f"?{query}" if query else "?"
-
         def _row_pid(r):
             return r.get("photo_id") or r.get("id") or ""
 
@@ -1840,35 +1838,6 @@ with tabs[0]:
         if key_bits not in st.session_state:
             st.session_state[key_bits] = []
 
-        params_current = {
-            k: list(st.query_params.get_all(k))
-            for k in st.query_params
-        }
-        selection_vals = params_current.pop("img_select", None)
-        if selection_vals:
-            if params_current:
-                st.query_params.from_dict(
-                    {
-                        k: v if len(v) > 1 else v[0]
-                        for k, v in params_current.items()
-                    }
-                )
-            else:
-                st.query_params.clear()
-            choice = selection_vals[-1]
-            if choice == "left":
-                st.session_state[key_bits].append(0)
-                st.rerun()
-            elif choice == "right":
-                st.session_state[key_bits].append(1)
-                st.rerun()
-            elif choice == "neither":
-                st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
-                emb = st.session_state.get(key_emb)
-                current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
-                st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
-                st.rerun()
-
         bits = st.session_state.get(key_bits, [])
         tree = st.session_state.get(key_tree)
         emb = st.session_state.get(key_emb)
@@ -1899,150 +1868,92 @@ with tabs[0]:
                         continue
                 pid = r.get("photo_id") or r.get("id") or ""
                 img_srcs.append(f"https://source.unsplash.com/{pid}/600x400")
-            try:
-                from clickable_images import clickable_images  # type: ignore
+            chosen_action: Optional[str] = None
+            clickable_available = False
+            if len(img_srcs) == 2 and all(img_srcs):
+                try:
+                    from clickable_images import clickable_images  # type: ignore
 
-                clicked = clickable_images(
-                    img_srcs,
-                    titles=["", ""],
-                    div_style={
-                        "display": "flex",
-                        "justify-content": "space-between",
-                        "gap": "1rem",
-                        "align-items": "stretch",
-                    },
-                    img_style={
-                        "width": "100%",
-                        "height": "240px",
-                        "object-fit": "cover",
-                        "border-radius": "12px",
-                        "border": "1px solid #ddd",
-                        "box-shadow": "0 2px 8px rgba(0,0,0,0.05)",
-                    },
+                    clickable_available = True
+                    clicked = clickable_images(
+                        img_srcs,
+                        titles=["", ""],
+                        div_style={
+                            "display": "flex",
+                            "justify-content": "space-between",
+                            "gap": "1rem",
+                            "align-items": "stretch",
+                        },
+                        img_style={
+                            "width": "100%",
+                            "height": "240px",
+                            "object-fit": "cover",
+                            "border-radius": "12px",
+                            "border": "1px solid #ddd",
+                            "box-shadow": "0 2px 8px rgba(0,0,0,0.05)",
+                        },
+                    )
+                    if clicked == 0:
+                        chosen_action = "left"
+                    elif clicked == 1:
+                        chosen_action = "right"
+                    ncol = st.columns([1, 1, 1])
+                    with ncol[1]:
+                        if st.button("Neither match", key=f"img_neither_{i}_{j}"):
+                            chosen_action = "neither"
+                except Exception:
+                    clickable_available = False
+
+            component_rendered = False
+            if (
+                chosen_action is None
+                and not clickable_available
+                and render_image_choice is not None
+                and len(img_srcs) == 2
+                and all(img_srcs)
+            ):
+                component_rendered = True
+                component_choice = render_image_choice(
+                    images=img_srcs,
+                    alts=img_alts,
+                    key=f"img_choice_{i}_{j}",
                 )
-                if clicked == 0:
-                    st.session_state[key_bits].append(0)
-                    st.rerun()
-                elif clicked == 1:
-                    st.session_state[key_bits].append(1)
-                    st.rerun()
-                # Neither match CTA
-                ncol = st.columns([1, 1, 1])
-                with ncol[1]:
-                    if st.button("Neither match", key="img_neither"):
-                        st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
-                        emb = st.session_state.get(key_emb)
-                        current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
-                        st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
-                        st.rerun()
-            except Exception:
-                if len(img_srcs) == 2 and all(img_srcs):
-                    st.markdown(
-                        """
-                        <style>
-                        .img-choice-grid {
-                            display: flex;
-                            justify-content: space-between;
-                            gap: 1rem;
-                            align-items: stretch;
-                        }
-                        .img-choice-grid .img-choice {
-                            flex: 1;
-                            display: block;
-                            border-radius: 12px;
-                            overflow: hidden;
-                            border: 1px solid #ddd;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-                            cursor: pointer;
-                        }
-                        .img-choice-grid .img-choice:hover,
-                        .img-choice-grid .img-choice:focus {
-                            transform: translateY(-2px);
-                            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
-                            border-color: #bbb;
-                        }
-                        .img-choice-grid .img-choice img {
-                            width: 100%;
-                            height: 240px;
-                            object-fit: cover;
-                            display: block;
-                        }
-                        .img-choice-actions {
-                            margin-top: 1rem;
-                            text-align: center;
-                        }
-                        .img-choice-actions a {
-                            display: inline-block;
-                            padding: 0.5rem 1.25rem;
-                            border-radius: 999px;
-                            border: 1px solid #444;
-                            color: #444;
-                            text-decoration: none;
-                            font-weight: 500;
-                            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-                            cursor: pointer;
-                        }
-                        .img-choice-actions a:hover,
-                        .img-choice-actions a:focus {
-                            background-color: #444;
-                            border-color: #444;
-                            color: #fff;
-                        }
-                        </style>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    left_url = _build_image_action_url("left")
-                    right_url = _build_image_action_url("right")
-                    neither_url = _build_image_action_url("neither")
-                    left_target = html.escape(left_url, quote=True)
-                    right_target = html.escape(right_url, quote=True)
-                    neither_target = html.escape(neither_url, quote=True)
-                    st.markdown(
-                        f"""
-                        <div class="img-choice-grid">
-                            <a class="img-choice" role="button" tabindex="0" onclick="window.location.href='{left_target}';" onkeydown="if(event.key==='Enter'||event.key===' '){{window.location.href='{left_target}';}}">
-                                <img src="{html.escape(img_srcs[0], quote=True)}" alt="{html.escape(img_alts[0] or '', quote=True)}" />
-                            </a>
-                            <a class="img-choice" role="button" tabindex="0" onclick="window.location.href='{right_target}';" onkeydown="if(event.key==='Enter'||event.key===' '){{window.location.href='{right_target}';}}">
-                                <img src="{html.escape(img_srcs[1], quote=True)}" alt="{html.escape(img_alts[1] or '', quote=True)}" />
-                            </a>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(
-                        f"""
-                        <div class="img-choice-actions">
-                            <a role="button" tabindex="0" onclick="window.location.href='{neither_target}';" onkeydown="if(event.key==='Enter'||event.key===' '){{window.location.href='{neither_target}';}}">Neither match</a>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    # Fallback to buttons if component or image sources are unavailable
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if not _render_image(left_row):
-                            st.write("No image available")
-                        if st.button("This matches", key="img_left_btn"):
-                            st.session_state[key_bits].append(0)
-                            st.rerun()
-                    with col2:
-                        if not _render_image(right_row):
-                            st.write("No image available")
-                        if st.button("This matches", key="img_right_btn"):
-                            st.session_state[key_bits].append(1)
-                            st.rerun()
-                    ccent = st.columns([1, 1, 1])
-                    with ccent[1]:
-                        if st.button("Neither match", key="img_neither_btn"):
-                            st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
-                            emb = st.session_state.get(key_emb)
-                            current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
-                            st.session_state[key_tree] = build_greedy_tree(current_leaf_ids, emb, seed=st.session_state["img_seed"])
-                            st.rerun()
+                if component_choice in {"left", "right", "neither"}:
+                    chosen_action = str(component_choice)
+
+            if chosen_action is None and not clickable_available and not component_rendered:
+                col1, col2 = st.columns(2)
+                with col1:
+                    if not _render_image(left_row):
+                        st.write("No image available")
+                    if st.button("This matches", key=f"img_left_btn_{i}_{j}"):
+                        chosen_action = "left"
+                with col2:
+                    if not _render_image(right_row):
+                        st.write("No image available")
+                    if st.button("This matches", key=f"img_right_btn_{i}_{j}"):
+                        chosen_action = "right"
+                ccent = st.columns([1, 1, 1])
+                with ccent[1]:
+                    if st.button("Neither match", key=f"img_neither_btn_{i}_{j}"):
+                        chosen_action = "neither"
+
+            if chosen_action == "left":
+                st.session_state[key_bits].append(0)
+                st.rerun()
+            elif chosen_action == "right":
+                st.session_state[key_bits].append(1)
+                st.rerun()
+            elif chosen_action == "neither":
+                st.session_state["img_seed"] = int(st.session_state.get("img_seed", 0)) + 1
+                emb = st.session_state.get(key_emb)
+                current_leaf_ids = list(st.session_state.get(key_leaf, tuple(leaf_ids)))
+                st.session_state[key_tree] = build_greedy_tree(
+                    current_leaf_ids,
+                    emb,
+                    seed=st.session_state["img_seed"],
+                )
+                st.rerun()
         else:
             leaf_idx = node_img
             try:
