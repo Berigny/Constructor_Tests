@@ -125,3 +125,42 @@ def test_interpreter_uses_metadata_signals_in_queries(tmp_path) -> None:
     assert queries_multi["Tech"].endswith("under $100")
     assert "art and philosophy and tech" in queries_multi["Books"]
     assert "style" in result["probe_axes"]
+
+
+def test_interpreter_infers_demographic_filters(tmp_path) -> None:
+    metadata = [
+        {
+            "id": "photo-42",
+            "demographics": {
+                "gender": ["male"],
+                "age_group": ["35-44"],
+                "recipient": ["man"],
+                "occasion": ["anniversary"],
+                "categories": ["Outdoors"],
+            },
+            "style": ["minimalist"],
+            "palette": ["blue"],
+        }
+    ]
+    metadata_path = tmp_path / "metadata.json"
+    metadata_path.write_text(json.dumps(metadata))
+
+    root = _project_root()
+    interpreter = QueryInterpreter(
+        manifest_path=str(root / "queries_manifest.json"),
+        metadata_path=str(metadata_path),
+    )
+
+    result = interpreter.interpret(
+        tokens=["hiking"],
+        categories=[],
+        photo_ids=["photo-42"],
+        use_llm=False,
+    )
+
+    assert result["recipient"] == "man"
+    assert "Outdoors" in result["categories"]
+    assert "Occasion" in result["categories"]
+    assert result["filters"]["Gender"] == "Men"
+    assert result["filters"]["Suitable for ages"] == "35-44 Years"
+    assert result["filters"]["Occasion"] == "Anniversary"
