@@ -221,6 +221,66 @@ def any_in_budget(items: List[Dict[str, Any]], lo: Optional[float], hi: Optional
     return False
 
 
+def infer_budget_from_text(message: str) -> Tuple[Optional[float], Optional[float]]:
+    """Best-effort budget extraction from free-form chat prompts."""
+
+    if not message:
+        return (None, None)
+
+    text = message.lower()
+
+    def _to_float(token: str) -> Optional[float]:
+        try:
+            return float(token.replace(",", ""))
+        except Exception:
+            return None
+
+    # Explicit range expressions: "$20-$50", "between 20 and 40", "from 30 to 60"
+    range_patterns = [
+        r"\$?(\d+(?:\.\d+)?)\s*[-–]\s*\$?(\d+(?:\.\d+)?)",
+        r"(?:between|from)\s*\$?(\d+(?:\.\d+)?)\D+(?:and|to)\D*\$?(\d+(?:\.\d+)?)",
+    ]
+    for pattern in range_patterns:
+        m = re.search(pattern, text)
+        if m:
+            nums = [_to_float(m.group(1)), _to_float(m.group(2))]
+            nums = [n for n in nums if n is not None]
+            if len(nums) == 2:
+                lo, hi = sorted(nums)
+                return (lo, hi)
+
+    # Upper bound phrases
+    m = re.search(r"(?:under|less than|below|up to)\D*\$?(\d+(?:\.\d+)?)", text)
+    if m:
+        val = _to_float(m.group(1))
+        if val is not None:
+            return (None, val)
+
+    # Lower bound phrases
+    m = re.search(r"(?:over|more than|above|at least)\D*\$?(\d+(?:\.\d+)?)", text)
+    if m:
+        val = _to_float(m.group(1))
+        if val is not None:
+            return (val, None)
+
+    # Approximate phrases like "around $60"
+    m = re.search(r"(?:around|about|approx(?:imately)?|near)\D*\$?(\d+(?:\.\d+)?)", text)
+    if m:
+        val = _to_float(m.group(1))
+        if val is not None:
+            return (0.8 * val, 1.2 * val)
+
+    # Fallback: single number mentioned alongside $ or budget context
+    if "$" in text or "budget" in text:
+        m = re.search(r"\$?(\d+(?:\.\d+)?)", text)
+        if m:
+            val = _to_float(m.group(1))
+            if val is not None:
+                return (0.8 * val, 1.2 * val)
+
+    return (None, None)
+
+
 # Common runner to fetch products; stores outputs in session_state
 def run_product_search(q_base: str, include_cats: List[str], lo: Optional[float], hi: Optional[float], label: str) -> None:
     pf = price_filter_value(lo, hi)
@@ -723,6 +783,69 @@ def normalise_items(raw_items: List[Dict[str, Any]], source_band: str) -> List[D
         n["_band"] = source_band  # 'original' or 'expanded'
         out.append(n)
     return out
+
+
+def build_product_url(raw_url: str) -> str:
+    if not raw_url:
+        return ""
+    su = str(raw_url).strip()
+    if su.startswith("http://") or su.startswith("https://"):
+        return su
+    return urljoin("https://www.kmart.com.au/", su.lstrip("/"))
+
+
+def build_conversation_reply(
+    prompt: str,
+    include_cats: Sequence[str],
+    lo: Optional[float],
+    hi: Optional[float],
+    errors: Sequence[str],
+    results: Sequence[Mapping[str, Any]],
+) -> str:
+    """Generate a conversational response summarising the latest search."""
+
+    budget_line = price_text(lo, hi)
+    cat_line = ", ".join(dict.fromkeys([str(c) for c in include_cats if c]))
+    summary_intro: Optional[str] = None
+    if budget_line and cat_line:
+        summary_intro = f"I looked for ideas in {cat_line} within {budget_line}."
+    elif budget_line:
+        summary_intro = f"I looked for ideas within {budget_line}."
+    elif cat_line:
+        summary_intro = f"I focused on {cat_line}."
+
+    if results:
+        lines: List[str] = []
+        if summary_intro:
+            lines.append(summary_intro)
+        else:
+            lines.append("Here are some options that match your request:")
+        for item in list(results)[:3]:
+            title = str(item.get("title") or "View product")
+            url = build_product_url(item.get("url") or "")
+            price_val = item.get("price")
+            price_txt = f" – ${price_val:.2f}" if isinstance(price_val, (int, float)) and price_val is not None else ""
+            cat = item.get("categories")
+            cat_txt = ""
+            if isinstance(cat, list):
+                filtered = [str(c) for c in cat if c]
+                if filtered:
+                    cat_txt = f" ({filtered[0]})"
+            elif isinstance(cat, str) and cat:
+                cat_txt = f" ({cat})"
+            bullet = f"- [{title}]({url}){price_txt}{cat_txt}" if url else f"- {title}{price_txt}{cat_txt}"
+            lines.append(bullet)
+        if len(results) > 3:
+            lines.append("See the **Top picks** section below for more suggestions from this search.")
+        if errors:
+            lines.append(f"_Note: {errors[0]}_")
+        return "\n".join(lines)
+
+    if errors:
+        return f"I couldn't fetch new results because: {errors[0]}"
+
+    follow_up = "Try rephrasing or adding an interest or budget." if prompt else "Let me know who you're shopping for."
+    return f"I couldn't find matching products this time. {follow_up}"
 
 
 def build_query_text(relationship: str, gender: Optional[str], age_text: Optional[str], interest: str, price_phrase: Optional[str] = None, generation_label: Optional[str] = None) -> str:
@@ -1377,7 +1500,7 @@ with st.sidebar:
     else:
         st.session_state["llm_enabled"] = False
 
-tabs = st.tabs(["Images", "Quiz", "URLs"])
+tabs = st.tabs(["Images", "Quiz", "URLs", "Conversation"])
 
 with tabs[1]:
     st.subheader("Who is the gift for?")
@@ -1622,6 +1745,52 @@ with tabs[2]:
         st.session_state["last_errors"] = errors
         st.session_state["last_urls"] = urls_used
         st.session_state["last_label"] = "URLs"
+
+with tabs[3]:
+    st.subheader("Conversation")
+    st.caption(
+        "Chat through gift ideas. Each message will run a Constructor search using the current settings."
+    )
+
+    if "conversation_messages" not in st.session_state:
+        st.session_state["conversation_messages"] = [
+            {
+                "role": "assistant",
+                "content": "Hi! Tell me about the person or occasion and I'll suggest some products.",
+            }
+        ]
+
+    history: List[Dict[str, str]] = st.session_state["conversation_messages"]
+    for msg in history:
+        st.chat_message(msg["role"]).markdown(msg["content"])
+
+    prompt = st.chat_input("Describe what you're looking for")
+    if prompt:
+        history.append({"role": "user", "content": prompt})
+        st.chat_message("user").markdown(prompt)
+
+        lo_conv, hi_conv = infer_budget_from_text(prompt)
+        include_cats_conv = interest_to_categories(prompt, restrict_to_whitelist=restrict_cats)
+
+        turn_number = sum(1 for msg in history if msg.get("role") == "user")
+        label_conv = f"Conversation · turn {turn_number}"
+        run_product_search(prompt, include_cats_conv, lo_conv, hi_conv, label=label_conv)
+
+        results_conv = st.session_state.get("last_results", []) or []
+        errors_conv = st.session_state.get("last_errors", []) or []
+        reply = build_conversation_reply(
+            prompt,
+            include_cats_conv,
+            lo_conv,
+            hi_conv,
+            errors_conv,
+            results_conv,
+        )
+
+        history.append({"role": "assistant", "content": reply})
+        st.chat_message("assistant").markdown(reply)
+
+        st.session_state["conversation_messages"] = history
 
 with tabs[0]:
     # Images vibe picker (simplified UI)
@@ -2272,14 +2441,7 @@ if last_results:
     lo_b, hi_b = lohi
     for idx, it in enumerate(last_results, start=1):
         title = it.get("title") or "View product"
-        def _full_product_url(u: str) -> str:
-            if not u:
-                return ""
-            su = str(u).strip()
-            if su.startswith("http://") or su.startswith("https://"):
-                return su
-            return urljoin("https://www.kmart.com.au/", su.lstrip("/"))
-        url = _full_product_url(it.get("url") or "")
+        url = build_product_url(it.get("url") or "")
         price = it.get("price")
         meta = f"${price:.2f}" if isinstance(price, (int, float)) and price is not None else ""
         # badges
