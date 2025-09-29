@@ -109,6 +109,31 @@ def load_quiz(path: str = "QuizIA.json") -> Dict[str, Any]:
         return json.load(f)
 
 
+def format_constructor_error(err: Exception) -> str:
+    """Return a concise, user-friendly description for Constructor failures."""
+
+    if isinstance(err, requests.exceptions.HTTPError):
+        status = getattr(err.response, "status_code", None)
+        if status is not None:
+            return (
+                "Constructor API returned HTTP "
+                f"{status}. Check that your key is valid and has access."
+            )
+        return "Constructor API returned an unexpected HTTP error."
+    if isinstance(err, requests.exceptions.Timeout):
+        return "Constructor API request timed out. Please try again."
+    if isinstance(err, requests.exceptions.ProxyError):
+        return (
+            "Unable to reach the Constructor API through the proxy. "
+            "Check your VPN or network connection."
+        )
+    if isinstance(err, requests.exceptions.ConnectionError):
+        return "Unable to connect to the Constructor API. Check your network connection."
+    if isinstance(err, requests.exceptions.RequestException):
+        return f"Constructor API request failed: {err.__class__.__name__}."
+    return str(err)
+
+
 # ----------------------- Helper parsing utils -----------------------
 def parse_budget_range(label: str) -> Tuple[Optional[float], Optional[float]]:
     s = label.strip().lower()
@@ -202,6 +227,16 @@ def run_product_search(q_base: str, include_cats: List[str], lo: Optional[float]
     urls_used: List[str] = []
     errors: List[str] = []
     chosen: List[Dict[str, Any]] = []
+    if not api_key:
+        errors.append(
+            "Constructor API key is not configured. Enter the PIN and add the key in Streamlit secrets to run searches."
+        )
+        st.session_state["last_results"] = chosen
+        st.session_state["last_errors"] = errors
+        st.session_state["last_urls"] = urls_used
+        st.session_state["last_label"] = label
+        st.session_state["last_budget"] = (lo, hi)
+        return
     try:
         if match_type == "Constructor":
             items_raw, urls1 = fetch_aggregate_items(base_url, q_base, api_key, pf, include_cats, per_page=max(per_page, gifts_opt), pages=1)
@@ -274,7 +309,7 @@ def run_product_search(q_base: str, include_cats: List[str], lo: Optional[float]
                 if len(chosen) >= gifts_opt:
                     break
     except Exception as e:
-        errors.append(str(e))
+        errors.append(format_constructor_error(e))
 
     # Store for common rendering
     st.session_state["last_results"] = chosen
@@ -813,50 +848,50 @@ def build_minimal_query(relationship: str, gender: Optional[str], age_text: Opti
 def fetch_aggregate_items(base_url: str, q_text: str, api_key: str, pf: Optional[str], include_cats: List[str], per_page: int, pages: int) -> Tuple[List[Dict[str, Any]], List[str]]:
     """Fetch items over several fallback strategies. Returns (items_raw, urls_used)."""
     urls_used: List[str] = []
-    def _do_fetch(qt: str, cats: List[str], pricef: Optional[str]) -> List[Dict[str, Any]]:
+    last_error: Optional[Exception] = None
+    saw_success = False
+
+    def _do_fetch(qt: str, cats: List[str], pricef: Optional[str]) -> Optional[List[Dict[str, Any]]]:
+        nonlocal last_error, saw_success
         out_raw: List[Dict[str, Any]] = []
-        for p in range(1, pages + 1):
-            url = make_url(base_url, qt, api_key, pricef, cats, per_page=per_page, page=p)
-            urls_used.append(url)
-            r = requests.get(url, timeout=20)
-            r.raise_for_status()
-            data = r.json()
-            out_raw.extend(extract_items(data))
+        try:
+            for p in range(1, pages + 1):
+                url = make_url(base_url, qt, api_key, pricef, cats, per_page=per_page, page=p)
+                urls_used.append(url)
+                r = requests.get(url, timeout=20)
+                r.raise_for_status()
+                data = r.json()
+                out_raw.extend(extract_items(data))
+        except Exception as exc:  # network or HTTP failure
+            last_error = exc
+            return None
+        saw_success = True
         return out_raw
 
-    # 1) Full constraints
-    try:
-        raw = _do_fetch(q_text, include_cats, pf)
+    attempts = [
+        (q_text, include_cats, pf),
+        (q_text, [], pf),
+        (q_text, [], None),
+    ]
+
+    for args in attempts:
+        raw = _do_fetch(*args)
         if raw:
             return raw, urls_used
-    except Exception:
-        pass
-    # 2) Drop categories
-    try:
-        raw = _do_fetch(q_text, [], pf)
-        if raw:
-            return raw, urls_used
-    except Exception:
-        pass
-    # 3) Drop price filter
-    try:
-        raw = _do_fetch(q_text, [], None)
-        if raw:
-            return raw, urls_used
-    except Exception:
-        pass
+
     # 4) Minimal query: strip persona if present, keep core phrase
     def _simplify(qs: str) -> str:
         m = re.search(r"(Thoughtful ideas.*)$", qs)
         if m:
             return m.group(1)
         return qs
-    try:
-        raw = _do_fetch(_simplify(q_text), [], None)
-        if raw:
-            return raw, urls_used
-    except Exception:
-        pass
+
+    raw = _do_fetch(_simplify(q_text), [], None)
+    if raw:
+        return raw, urls_used
+
+    if not saw_success and last_error is not None:
+        raise last_error
     return [], urls_used
 
 
@@ -1473,6 +1508,11 @@ with tabs[2]:
     st.session_state["url_nl"] = url_nl
     @st.cache_data
     def fetch_filter_types(base: str, key: str) -> List[str]:
+        base_order = [
+            "Category","Product Type","Subcategory","Price","Audience","Colour","Material","Features","Book Genre","Brand","Size","Suitable for ages","Capacity","Power Rating"
+        ]
+        if not key:
+            return base_order
         try:
             # minimal seed query to fetch facets; tolerate failure
             seed_url = f"{base}/v1/search/natural_language/ideas"
@@ -1486,10 +1526,6 @@ with tabs[2]:
                 nm = f.get("name") or f.get("display_name")
                 if nm:
                     names.append(str(nm))
-            # Dedup, keep common ones first
-            base_order = [
-                "Category","Product Type","Subcategory","Price","Audience","Colour","Material","Features","Book Genre","Brand","Size","Suitable for ages","Capacity","Power Rating"
-            ]
             out = []
             for b in base_order:
                 if b in names and b not in out:
@@ -1499,9 +1535,7 @@ with tabs[2]:
                     out.append(n)
             return out or base_order
         except Exception:
-            return [
-                "Category","Product Type","Subcategory","Price","Audience","Colour","Material","Features","Book Genre","Brand","Size","Suitable for ages","Capacity","Power Rating"
-            ]
+            return base_order
 
     FILTER_TYPES = fetch_filter_types(base_url, api_key)
     if "url_filters" not in st.session_state:
@@ -1537,48 +1571,53 @@ with tabs[2]:
         urls_used: List[str] = []
         errors: List[str] = []
         chosen: List[Dict[str, Any]] = []
-        try:
-            if match_type == "Constructor":
-                raw, urls1 = fetch_aggregate_items_generic(base_url, url_nl, api_key, per_page=max(per_page, gifts_opt), pages=1, filter_pairs=pairs)
-                urls_used.extend(urls1)
-                items = [normalise_item(it) for it in raw]
-                chosen = items[:gifts_opt]
-            else:
-                all_items: List[Dict[str, Any]] = []
-                last_best = None
-                for iter_idx in range(1, queries_opt + 1):
-                    if iter_idx == 1:
-                        q_iter = url_nl
-                    elif iter_idx % 2 == 0:
-                        q_iter = divergent_variant(url_nl, url_nl, [], None)
-                    else:
-                        q_iter = refine_query(url_nl, last_best) if last_best else url_nl
-                    raw, urls2 = fetch_aggregate_items_generic(base_url, q_iter, api_key, per_page=per_page, pages=pages_per_iter, filter_pairs=pairs)
-                    urls_used.extend(urls2)
-                    seen_local = set()
-                    uniq_raw = []
-                    for it in raw:
-                        pid = it.get("id") or (it.get("data") or {}).get("id") or it.get("url")
-                        pid = str(pid)
-                        if pid and pid not in seen_local:
-                            seen_local.add(pid)
-                            uniq_raw.append(it)
-                    items = [normalise_item(it) for it in uniq_raw]
-                    all_items.extend(items)
-                    if items:
-                        best = sorted(items, key=lambda it: score_item(it, url_nl, None, None), reverse=True)[0]
-                        last_best = best
-                ranked = sorted(all_items, key=lambda it: score_item(it, url_nl, None, None), reverse=True)
-                seen = set()
-                for it in ranked:
-                    pid = it.get("id") or it.get("url")
-                    if pid and pid not in seen and it.get("url"):
-                        chosen.append(it)
-                        seen.add(pid)
-                    if len(chosen) >= gifts_opt:
-                        break
-        except Exception as e:
-            errors.append(str(e))
+        if not api_key:
+            errors.append(
+                "Constructor API key is not configured. Enter the PIN and add the key in Streamlit secrets to run searches."
+            )
+        else:
+            try:
+                if match_type == "Constructor":
+                    raw, urls1 = fetch_aggregate_items_generic(base_url, url_nl, api_key, per_page=max(per_page, gifts_opt), pages=1, filter_pairs=pairs)
+                    urls_used.extend(urls1)
+                    items = [normalise_item(it) for it in raw]
+                    chosen = items[:gifts_opt]
+                else:
+                    all_items: List[Dict[str, Any]] = []
+                    last_best = None
+                    for iter_idx in range(1, queries_opt + 1):
+                        if iter_idx == 1:
+                            q_iter = url_nl
+                        elif iter_idx % 2 == 0:
+                            q_iter = divergent_variant(url_nl, url_nl, [], None)
+                        else:
+                            q_iter = refine_query(url_nl, last_best) if last_best else url_nl
+                        raw, urls2 = fetch_aggregate_items_generic(base_url, q_iter, api_key, per_page=per_page, pages=pages_per_iter, filter_pairs=pairs)
+                        urls_used.extend(urls2)
+                        seen_local = set()
+                        uniq_raw = []
+                        for it in raw:
+                            pid = it.get("id") or (it.get("data") or {}).get("id") or it.get("url")
+                            pid = str(pid)
+                            if pid and pid not in seen_local:
+                                seen_local.add(pid)
+                                uniq_raw.append(it)
+                        items = [normalise_item(it) for it in uniq_raw]
+                        all_items.extend(items)
+                        if items:
+                            best = sorted(items, key=lambda it: score_item(it, url_nl, None, None), reverse=True)[0]
+                            last_best = best
+                    ranked = sorted(all_items, key=lambda it: score_item(it, url_nl, None, None), reverse=True)
+                    seen = set()
+                    for it in ranked:
+                        pid = it.get("id") or it.get("url")
+                        if pid and pid not in seen and it.get("url"):
+                            chosen.append(it)
+                            seen.add(pid)
+                        if len(chosen) >= gifts_opt:
+                            break
+            except Exception as e:
+                errors.append(format_constructor_error(e))
         st.session_state["last_results"] = chosen
         st.session_state["last_errors"] = errors
         st.session_state["last_urls"] = urls_used
