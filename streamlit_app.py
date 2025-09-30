@@ -51,6 +51,17 @@ _load_env_from_file(".env.local")
 _load_env_from_file(".env")
 
 
+def _sanitize_user_query(text: str) -> str:
+    """Call ``sanitize_query`` with the newer API when available."""
+
+    try:
+        return sanitize_query(text, strip_forbidden=False)
+    except TypeError:
+        # Older builds of ``sanitize_query`` do not support ``strip_forbidden``.
+        # Fall back to the legacy behaviour so the UI keeps working.
+        return sanitize_query(text)
+
+
 # ----------------------- Query builder cache -----------------------
 _QUERY_BUILDER: Optional[QueryBuilder] = None
 _QUERY_BUILDER_MTIME: Optional[float] = None
@@ -963,7 +974,7 @@ def divergent_variant(
             parts.append(price_clean)
 
     variant = " ".join(p for p in parts if p)
-    return sanitize_query(variant, strip_forbidden=False)
+    return _sanitize_user_query(variant)
 
 
 def build_minimal_query(relationship: str, gender: Optional[str], age_text: Optional[str], interest: str, price_phrase: Optional[str] = None) -> str:
@@ -1199,7 +1210,7 @@ def make_url(
     endpoint = urljoin(base, "/v1/search/natural_language/")
 
     return build_constructor_url(
-        nl_query=sanitize_query(query, strip_forbidden=False),
+        nl_query=_sanitize_user_query(query),
         api_key=key,
         base_url=endpoint,
         page=page,
@@ -1299,7 +1310,7 @@ def url_for_bucket(
     endpoint = urljoin(base_url, "/v1/search/natural_language/")
 
     return build_constructor_url(
-        nl_query=sanitize_query(nl, strip_forbidden=False),
+        nl_query=_sanitize_user_query(nl),
         api_key=api_key,
         base_url=endpoint,
         page=1,
@@ -1354,7 +1365,7 @@ def make_url_with_pairs(
         extra.append(("pre_filter_expression", prefilter_override))
 
     return build_constructor_url(
-        nl_query=sanitize_query(query, strip_forbidden=False),
+        nl_query=_sanitize_user_query(query),
         api_key=key,
         base_url=endpoint,
         page=page,
@@ -1403,7 +1414,7 @@ def constructor_search(query: str, price_filter: Optional[str], page: int, per_p
         filters["Price"] = price_filter
 
     url = build_constructor_url(
-        nl_query=sanitize_query(query, strip_forbidden=False),
+        nl_query=_sanitize_user_query(query),
         api_key=key,
         base_url=endpoint,
         page=page,
