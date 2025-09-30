@@ -2420,13 +2420,16 @@ with tabs[3]:
         ]
 
     history: List[Dict[str, str]] = st.session_state["conversation_messages"]
-    for msg in history:
-        st.chat_message(msg["role"]).markdown(msg["content"])
+    chat_container = st.container()
+    with chat_container:
+        for msg in history:
+            st.chat_message(msg["role"]).markdown(msg["content"])
 
     prompt = st.chat_input("Describe what you're looking for")
     if prompt:
         history.append({"role": "user", "content": prompt})
-        st.chat_message("user").markdown(prompt)
+        with chat_container:
+            st.chat_message("user").markdown(prompt)
 
         lo_conv, hi_conv = infer_budget_from_text(prompt)
         include_cats_conv = interest_to_categories(prompt, restrict_to_whitelist=restrict_cats)
@@ -2447,7 +2450,8 @@ with tabs[3]:
         )
 
         history.append({"role": "assistant", "content": reply})
-        st.chat_message("assistant").markdown(reply)
+        with chat_container:
+            st.chat_message("assistant").markdown(reply)
 
         st.session_state["conversation_messages"] = history
 
