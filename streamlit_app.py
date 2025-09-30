@@ -1562,9 +1562,27 @@ with tabs[1]:
     gender = None
     age = None
     interest = None
-    budget_label = None
+    budget_label = "NIL/Open"
     relationship = None
     age_range = (None, None)
+    budget_value: Optional[float] = None
+
+    def render_budget_slider(key_suffix: str) -> Tuple[Optional[float], str]:
+        slider_val = st.slider(
+            "Budget (maximum)",
+            min_value=0,
+            max_value=250,
+            value=0,
+            step=5,
+            format="$%d",
+            key=f"quiz_budget_slider_{key_suffix}",
+            help="Select the maximum spend. Choose $0 for a NIL/Open budget.",
+        )
+        if slider_val <= 0:
+            st.caption("Budget: NIL/Open")
+            return None, "NIL/Open"
+        st.caption(f"Showing gifts under ${int(slider_val)}")
+        return float(slider_val), f"Under ${int(slider_val)}"
 
     if recipient_kind == "Pet":
         # Pet flow
@@ -1575,8 +1593,7 @@ with tabs[1]:
         pet_node = node["pet_type"][pet]
         interests = pet_node.get("interests", [])
         interest = st.selectbox("Interest", options=interests)
-        budgets = pet_node.get("budget", [])
-        budget_label = st.selectbox("Budget", options=budgets)
+        budget_value, budget_label = render_budget_slider("pet")
         relationship = f"{pet}"
     else:
         # Human flow: generation first
@@ -1631,17 +1648,16 @@ with tabs[1]:
                     age_node = {}
         interests = age_node.get("interests", []) if isinstance(age_node, dict) else []
         interest = st.selectbox("Interest", options=interests)
-        budgets = age_node.get("budget", []) if isinstance(age_node, dict) else []
-        budget_label = st.selectbox("Budget", options=budgets)
+        budget_value, budget_label = render_budget_slider("human")
         relationship = who
 
     st.divider()
     if st.button("Find products", key="quiz_go", type="primary"):
-        lo, hi = parse_budget_range(budget_label or "")
+        lo, hi = (None, budget_value)
         age_text_display = None
         if who != "pet" and age_range[0] is not None:
             age_text_display = f"ages {age_range[0]}–{age_range[1]}"
-        p_phrase = price_text(*parse_budget_range(budget_label or "")) if include_budget_in_query else None
+        p_phrase = price_text(lo, hi) if include_budget_in_query else None
         current_generation = gen_label if who != "pet" else None
         q_base = build_query_text(relationship, None if who == "pet" else gender, age_text_display, interest or "", p_phrase, current_generation)
         include_cats = interest_to_categories(interest or "", restrict_to_whitelist=restrict_cats)
@@ -2361,7 +2377,7 @@ if False:
                     ])
                 # Recompute to capture URL and cats used per iter
                 include_cats = interest_to_categories(interest or "", restrict_to_whitelist=restrict_cats)
-                lo, hi = parse_budget_range(budget_label or "")
+                lo, hi = (None, budget_value)
                 pf = price_filter_value(lo, hi)
                 if match_type == "Constructor":
                     queries_used = [q]
