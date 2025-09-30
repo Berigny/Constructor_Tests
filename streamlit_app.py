@@ -938,20 +938,32 @@ def build_query_text(relationship: str, gender: Optional[str], age_text: Optiona
     return " ".join(parts).strip()
 
 
-def divergent_variant(base_query: str, interest: str, include_cats: List[str], price_phrase: Optional[str]) -> str:
-    """Produce a more creative/divergent take on the base query, while
-    preserving the persona and constraints. Avoid the word 'gift'."""
-    intr = prettify_token(interest)
-    cats = ", ".join(dict.fromkeys(include_cats)) if include_cats else ""
-    mood = (
-        "Explore fresh, imaginative options that surprise and delight, "
-        "still aligned to everyday Australian needs and smart savings. "
-    )
-    cat_line = f" Focus on motifs related to: {intr}." if intr else ""
-    if cats:
-        cat_line += f" Consider catalogue areas like: {cats}."
-    price_line = f" Aim {price_phrase}." if price_phrase else ""
-    return f"{base_query} {mood}{cat_line}{price_line}"
+def divergent_variant(
+    base_query: str,
+    interest: str,
+    include_cats: List[str],
+    price_phrase: Optional[str],
+) -> str:
+    """Produce a lightweight variant of ``base_query`` without adding fluff."""
+
+    parts: List[str] = [base_query.strip()]
+
+    intr = prettify_token(interest).strip()
+    if intr and intr.lower() not in base_query.lower():
+        parts.append(intr)
+
+    for cat in include_cats:
+        cat_clean = prettify_token(cat).strip()
+        if cat_clean and cat_clean.lower() not in base_query.lower():
+            parts.append(cat_clean)
+
+    if price_phrase:
+        price_clean = price_phrase.strip()
+        if price_clean and price_clean.lower() not in base_query.lower():
+            parts.append(price_clean)
+
+    variant = " ".join(p for p in parts if p)
+    return sanitize_query(variant, strip_forbidden=False)
 
 
 def build_minimal_query(relationship: str, gender: Optional[str], age_text: Optional[str], interest: str, price_phrase: Optional[str] = None) -> str:
@@ -1187,7 +1199,7 @@ def make_url(
     endpoint = urljoin(base, "/v1/search/natural_language/")
 
     return build_constructor_url(
-        nl_query=sanitize_query(query),
+        nl_query=sanitize_query(query, strip_forbidden=False),
         api_key=key,
         base_url=endpoint,
         page=page,
@@ -1287,7 +1299,7 @@ def url_for_bucket(
     endpoint = urljoin(base_url, "/v1/search/natural_language/")
 
     return build_constructor_url(
-        nl_query=sanitize_query(nl),
+        nl_query=sanitize_query(nl, strip_forbidden=False),
         api_key=api_key,
         base_url=endpoint,
         page=1,
@@ -1342,7 +1354,7 @@ def make_url_with_pairs(
         extra.append(("pre_filter_expression", prefilter_override))
 
     return build_constructor_url(
-        nl_query=sanitize_query(query),
+        nl_query=sanitize_query(query, strip_forbidden=False),
         api_key=key,
         base_url=endpoint,
         page=page,
@@ -1391,7 +1403,7 @@ def constructor_search(query: str, price_filter: Optional[str], page: int, per_p
         filters["Price"] = price_filter
 
     url = build_constructor_url(
-        nl_query=sanitize_query(query),
+        nl_query=sanitize_query(query, strip_forbidden=False),
         api_key=key,
         base_url=endpoint,
         page=page,

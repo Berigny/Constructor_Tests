@@ -265,18 +265,26 @@ def compose_query_from_tags(
     return QueryPlan(query=query, tokens=tuple(tokens), categories=tuple(categories))
 
 
-def sanitize_query(q: str) -> str:
-    """Remove forbidden demographic terms and tidy whitespace."""
+def sanitize_query(q: str, *, strip_forbidden: bool = True) -> str:
+    """Tidy whitespace and optionally strip demographic terms."""
 
     if not q:
         return ""
 
     cleaned = str(q)
 
-    # Remove phrases from the forbidden set.
-    for term in sorted(FORBIDDEN_TERMS, key=len, reverse=True):
-        pattern = re.compile(r"\b" + r"\s+".join(re.escape(part) for part in term.split()) + r"\b", re.IGNORECASE)
-        cleaned = pattern.sub(" ", cleaned)
+    if strip_forbidden:
+        # Remove phrases from the forbidden set when composing system-generated
+        # queries. User-provided text (e.g. "gifts for kids") can opt out via
+        # ``strip_forbidden=False`` so intent is preserved in the search URL.
+        for term in sorted(FORBIDDEN_TERMS, key=len, reverse=True):
+            pattern = re.compile(
+                r"\b"
+                + r"\s+".join(re.escape(part) for part in term.split())
+                + r"\b",
+                re.IGNORECASE,
+            )
+            cleaned = pattern.sub(" ", cleaned)
 
     # Preserve "gift ideas" but strip gift-card drift.
     cleaned = re.sub(r"\bgift\s*-?cards?\b", "", cleaned, flags=re.IGNORECASE)
