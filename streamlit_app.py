@@ -1769,52 +1769,6 @@ with tabs[2]:
         st.session_state["last_urls"] = urls_used
         st.session_state["last_label"] = "URLs"
 
-with tabs[3]:
-    st.subheader("Conversation")
-    st.caption(
-        "Chat through gift ideas. Each message will run a Constructor search using the current settings."
-    )
-
-    if "conversation_messages" not in st.session_state:
-        st.session_state["conversation_messages"] = [
-            {
-                "role": "assistant",
-                "content": "Hi! Tell me about the person or occasion and I'll suggest some products.",
-            }
-        ]
-
-    history: List[Dict[str, str]] = st.session_state["conversation_messages"]
-    for msg in history:
-        st.chat_message(msg["role"]).markdown(msg["content"])
-
-    prompt = st.chat_input("Describe what you're looking for")
-    if prompt:
-        history.append({"role": "user", "content": prompt})
-        st.chat_message("user").markdown(prompt)
-
-        lo_conv, hi_conv = infer_budget_from_text(prompt)
-        include_cats_conv = interest_to_categories(prompt, restrict_to_whitelist=restrict_cats)
-
-        turn_number = sum(1 for msg in history if msg.get("role") == "user")
-        label_conv = f"Conversation · turn {turn_number}"
-        run_product_search(prompt, include_cats_conv, lo_conv, hi_conv, label=label_conv)
-
-        results_conv = st.session_state.get("last_results", []) or []
-        errors_conv = st.session_state.get("last_errors", []) or []
-        reply = build_conversation_reply(
-            prompt,
-            include_cats_conv,
-            lo_conv,
-            hi_conv,
-            errors_conv,
-            results_conv,
-        )
-
-        history.append({"role": "assistant", "content": reply})
-        st.chat_message("assistant").markdown(reply)
-
-        st.session_state["conversation_messages"] = history
-
 with tabs[0]:
     # Images vibe picker (simplified UI)
     files, deck_sig = discover_images("unsplash_images")
@@ -2450,6 +2404,52 @@ if False:
             st.warning(f"Logging failed: {e}")
 
 # (old Images/URLs tabs removed; new tabs defined above)
+
+with tabs[3]:
+    st.subheader("Conversation")
+    st.caption(
+        "Chat through gift ideas. Each message will run a Constructor search using the current settings."
+    )
+
+    if "conversation_messages" not in st.session_state:
+        st.session_state["conversation_messages"] = [
+            {
+                "role": "assistant",
+                "content": "Hi! Tell me about the person or occasion and I'll suggest some products.",
+            }
+        ]
+
+    history: List[Dict[str, str]] = st.session_state["conversation_messages"]
+    for msg in history:
+        st.chat_message(msg["role"]).markdown(msg["content"])
+
+    prompt = st.chat_input("Describe what you're looking for")
+    if prompt:
+        history.append({"role": "user", "content": prompt})
+        st.chat_message("user").markdown(prompt)
+
+        lo_conv, hi_conv = infer_budget_from_text(prompt)
+        include_cats_conv = interest_to_categories(prompt, restrict_to_whitelist=restrict_cats)
+
+        turn_number = sum(1 for msg in history if msg.get("role") == "user")
+        label_conv = f"Conversation · turn {turn_number}"
+        run_product_search(prompt, include_cats_conv, lo_conv, hi_conv, label=label_conv)
+
+        results_conv = st.session_state.get("last_results", []) or []
+        errors_conv = st.session_state.get("last_errors", []) or []
+        reply = build_conversation_reply(
+            prompt,
+            include_cats_conv,
+            lo_conv,
+            hi_conv,
+            errors_conv,
+            results_conv,
+        )
+
+        history.append({"role": "assistant", "content": reply})
+        st.chat_message("assistant").markdown(reply)
+
+        st.session_state["conversation_messages"] = history
 
 # -------- Shared Results Section --------
 st.divider()
